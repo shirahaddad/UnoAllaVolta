@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,16 +12,89 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '@/store/authStore';
+import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
+
+const REDIRECT_URI = 'https://shirahaddad.github.io/UnoAllaVolta/auth.html';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { todoistToken, setTodoistToken } = useAuthStore();
-  const { projects } = useDeckStore();
-  const { excludedProjectIds, toggleProject } = useSettingsStore();
+  const { projects, calendars: deckCalendars } = useDeckStore();
+  const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar } = useSettingsStore();
+  const { email: googleEmail, setTokens, clearTokens, getValidToken } = useGoogleAuthStore();
+
   const [draft, setDraft] = useState('');
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [calendarsExpanded, setCalendarsExpanded] = useState(false);
+  const [calendarList, setCalendarList] = useState<GoogleCalendar[]>(deckCalendars);
+
+  const handleGoogleConnect = async () => {
+    const authUrl =
+      'https://accounts.google.com/o/oauth2/v2/auth?' +
+      new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: 'code',
+        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        access_type: 'offline',
+        prompt: 'consent',
+      }).toString();
+
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
+    if (result.type !== 'success') return;
+
+    const url = new URL(result.url);
+    const code = url.searchParams.get('code');
+    if (!code) return;
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: REDIRECT_URI,
+        grant_type: 'authorization_code',
+      }).toString(),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) return;
+
+    const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const userData = await userRes.json();
+
+    await setTokens({
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? '',
+      expiresIn: tokenData.expires_in ?? 3600,
+      email: userData.email ?? '',
+    });
+
+    const token = await getValidToken();
+    if (token) {
+      const cals = await fetchCalendarList(token);
+      setCalendarList(cals);
+    }
+  };
+
+  useEffect(() => {
+    if (googleEmail) {
+      getValidToken().then(async (token) => {
+        if (token) {
+          const cals = await fetchCalendarList(token);
+          setCalendarList(cals);
+        }
+      });
+    }
+  }, [googleEmail]);
 
   const handleSave = async () => {
     const trimmed = draft.trim();
@@ -33,6 +105,11 @@ export default function SettingsScreen() {
 
   const handleDisconnect = async () => {
     await setTodoistToken(null);
+  };
+
+  const handleGoogleDisconnect = async () => {
+    await clearTokens();
+    setCalendarList([]);
   };
 
   const maskedToken = todoistToken
@@ -54,9 +131,10 @@ export default function SettingsScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+
+          {/* TODOIST */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>TODOIST</Text>
-
             {todoistToken ? (
               <View style={styles.box}>
                 <View style={styles.connectedRow}>
@@ -95,36 +173,99 @@ export default function SettingsScreen() {
             )}
           </View>
 
+          {/* PROJECT SELECTION */}
           {todoistToken && projects.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>PROJECTS</Text>
-              <View style={styles.box}>
-                {projects.map((project, index) => {
-                  const included = !excludedProjectIds.includes(project.id);
-                  return (
-                    <View
-                      key={project.id}
-                      style={[
-                        styles.projectRow,
-                        index < projects.length - 1 && styles.projectRowBorder,
-                      ]}
-                    >
-                      <Text style={styles.projectName}>{project.name}</Text>
-                      <Switch
-                        value={included}
-                        onValueChange={() => toggleProject(project.id)}
-                        trackColor={{ false: '#2A2A2A', true: '#4A9BAF' }}
-                        thumbColor="#F0EFEB"
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-              <Text style={styles.hint}>
-                Only tasks from selected projects appear in your deck.
-              </Text>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setProjectsExpanded(v => !v)}
+              >
+                <Text style={styles.sectionLabel}>PROJECTS</Text>
+                <Ionicons
+                  name={projectsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color="#8A8A8A"
+                />
+              </TouchableOpacity>
+              {projectsExpanded && (
+                <View style={styles.chipContainer}>
+                  {projects.map((project) => {
+                    const included = !excludedProjectIds.includes(project.id);
+                    return (
+                      <TouchableOpacity
+                        key={project.id}
+                        style={[styles.chip, included && styles.chipActive]}
+                        onPress={() => toggleProject(project.id)}
+                      >
+                        <Text style={[styles.chipText, included && styles.chipTextActive]}>
+                          {project.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           )}
+
+          {/* GOOGLE CALENDAR */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>GOOGLE CALENDAR</Text>
+            {googleEmail ? (
+              <View style={styles.box}>
+                <View style={styles.connectedRow}>
+                  <View style={styles.dot} />
+                  <Text style={styles.connectedText}>Connected</Text>
+                </View>
+                <TouchableOpacity style={styles.disconnectButton} onPress={handleGoogleDisconnect}>
+                  <Text style={styles.disconnectText}>Disconnect</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleGoogleConnect}
+              >
+                <Text style={styles.saveButtonText}>Connect Google Calendar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* CALENDAR SELECTION */}
+          {googleEmail && calendarList.length > 0 && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setCalendarsExpanded(v => !v)}
+              >
+                <Text style={styles.sectionLabel}>CALENDARS</Text>
+                <Ionicons
+                  name={calendarsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color="#8A8A8A"
+                />
+              </TouchableOpacity>
+              {calendarsExpanded && (
+                <View style={styles.chipContainer}>
+                  {calendarList.map((cal) => {
+                    const included = !excludedCalendarIds.includes(cal.id);
+                    return (
+                      <TouchableOpacity
+                        key={cal.id}
+                        style={[styles.chip, included && styles.chipActive]}
+                        onPress={() => toggleCalendar(cal.id)}
+                      >
+                        <Text style={[styles.chipText, included && styles.chipTextActive]}>
+                          {cal.summary}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -241,7 +382,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 4,
   },
   saveButtonDisabled: {
     opacity: 0.4,
@@ -251,19 +391,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0F0F0F',
   },
-  projectRow: {
+  collapsibleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
   },
-  projectRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  projectName: {
-    fontSize: 15,
-    color: '#F0EFEB',
-    flex: 1,
+  chip: {
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  chipActive: {
+    backgroundColor: '#4A9BAF',
+    borderColor: '#4A9BAF',
+  },
+  chipText: {
+    fontSize: 13,
+    color: '#8A8A8A',
+  },
+  chipTextActive: {
+    color: '#0F0F0F',
+    fontWeight: '600',
   },
 });

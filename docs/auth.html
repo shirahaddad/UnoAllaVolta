@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>UnoAllaVolta Auth</title></head>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    window.location.href = 'unoallavolta://auth?' + params.toString();
+  } else {
+    document.body.textContent = params.get('error') || 'Something went wrong.';
+  }
+</script>
+<body>Redirecting to UnoAllaVolta...</body>
+</html>
