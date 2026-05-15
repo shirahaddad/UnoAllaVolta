@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '@/store/authStore';
-import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
+import { useGoogleAuthStore, GOOGLE_CLIENT_ID } from '@/store/googleAuthStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
@@ -26,7 +26,7 @@ export default function SettingsScreen() {
   const { todoistToken, setTodoistToken } = useAuthStore();
   const { projects, calendars: deckCalendars } = useDeckStore();
   const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar } = useSettingsStore();
-  const { email: googleEmail, setTokens, clearTokens, getValidToken } = useGoogleAuthStore();
+  const { email: googleEmail, clearTokens, getValidToken } = useGoogleAuthStore();
 
   const [draft, setDraft] = useState('');
   const [projectsExpanded, setProjectsExpanded] = useState(false);
@@ -45,44 +45,8 @@ export default function SettingsScreen() {
         prompt: 'consent',
       }).toString();
 
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
-    if (result.type !== 'success') return;
-
-    const url = new URL(result.url);
-    const code = url.searchParams.get('code');
-    if (!code) return;
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: REDIRECT_URI,
-        grant_type: 'authorization_code',
-      }).toString(),
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) return;
-
-    const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-    const userData = await userRes.json();
-
-    await setTokens({
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token ?? '',
-      expiresIn: tokenData.expires_in ?? 3600,
-      email: userData.email ?? '',
-    });
-
-    const token = await getValidToken();
-    if (token) {
-      const cals = await fetchCalendarList(token);
-      setCalendarList(cals);
-    }
+    // Token exchange is handled by app/auth.tsx when the deep link returns
+    await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
   };
 
   useEffect(() => {
