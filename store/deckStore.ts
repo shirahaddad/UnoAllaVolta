@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { fetchTasks, fetchProjects, closeTask, TodoistAuthError, TodoistProject } from '@/services/todoist';
-import { fetchTodayEvents, GoogleCalendar } from '@/services/googleCalendar';
+import { fetchTodayEvents, fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
 import { useAuthStore } from '@/store/authStore';
 import { useGoogleAuthStore } from '@/store/googleAuthStore';
 import { buildDeckCards } from '@/utils/cardBuilder';
@@ -13,7 +13,7 @@ export interface Card {
   type: CardType;
   title: string;
   subtitle: string;
-  order: number;
+  description?: string;
 }
 
 type ErrorKind = 'invalid_token' | 'network' | null;
@@ -23,12 +23,13 @@ interface DeckState {
   projects: TodoistProject[];
   calendars: GoogleCalendar[];
   doneCount: number;
+  laterCount: number;
   totalCount: number;
   isLoading: boolean;
   error: ErrorKind;
   markDone: (id: string) => void;
   moveLater: (id: string) => void;
-  fetchCards: (token: string) => Promise<void>;
+  fetchCards: (token?: string | null) => Promise<void>;
 }
 
 export const useDeckStore = create<DeckState>((set) => ({
@@ -36,6 +37,7 @@ export const useDeckStore = create<DeckState>((set) => ({
   projects: [],
   calendars: [],
   doneCount: 0,
+  laterCount: 0,
   totalCount: 0,
   isLoading: false,
   error: null,
@@ -45,12 +47,19 @@ export const useDeckStore = create<DeckState>((set) => ({
       const card = state.queue.find((c) => c.id === id);
       if (card?.type === 'task') {
         const token = useAuthStore.getState().todoistToken;
-        if (token) closeTask(id, token).catch(console.error);
+        if (token) closeTask(id, token).catch((e) => {
+          if (e instanceof TodoistAuthError) useAuthStore.getState().setTodoistToken(null);
+          console.error('[todoist] closeTask failed:', e);
+        });
       }
-      // calendar events: just remove locally, no API call
+      if (card?.type === 'calendar') {
+        useSettingsStore.getState().dismissCalendarEvent(id).catch(console.error);
+      }
+      const newQueue = state.queue.filter((c) => c.id !== id);
       return {
-        queue: state.queue.filter((c) => c.id !== id),
+        queue: newQueue,
         doneCount: state.doneCount + 1,
+        laterCount: state.laterCount >= newQueue.length ? 0 : state.laterCount,
       };
     }),
 
@@ -58,7 +67,11 @@ export const useDeckStore = create<DeckState>((set) => ({
     set((state) => {
       const card = state.queue.find((c) => c.id === id);
       if (!card) return state;
-      return { queue: [...state.queue.filter((c) => c.id !== id), card] };
+      const nextLaterCount = state.laterCount + 1;
+      return {
+        queue: [...state.queue.filter((c) => c.id !== id), card],
+        laterCount: nextLaterCount >= state.queue.length ? 0 : nextLaterCount,
+      };
     }),
 
   fetchCards: async (token) => {
@@ -67,40 +80,59 @@ export const useDeckStore = create<DeckState>((set) => ({
       const todayStr = new Date().toISOString().slice(0, 10);
       const settings = useSettingsStore.getState();
 
-      const [allTasks, projects] = await Promise.all([
-        fetchTasks(token),
-        fetchProjects(token),
+      const [todoistResult, googleToken] = await Promise.all([
+        token
+          ? Promise.all([fetchTasks(token), fetchProjects(token)])
+          : Promise.resolve([[], []] as const),
+        useGoogleAuthStore.getState().getValidToken(),
       ]);
+
+      const [allTasks, projects] = todoistResult;
 
       const excludedProjects = new Set(settings.excludedProjectIds);
       const tasks = allTasks.filter(
         (t) => !t.checked && !excludedProjects.has(t.project_id) && (t.due === null || t.due.date <= todayStr)
       );
 
-      // Fetch calendar events if Google is connected
       let events: Awaited<ReturnType<typeof fetchTodayEvents>> = [];
       let calendars: GoogleCalendar[] = [];
-      const googleToken = await useGoogleAuthStore.getState().getValidToken();
       if (googleToken) {
         try {
-          const { fetchCalendarList } = await import('@/services/googleCalendar');
-          const allCalendars = await fetchCalendarList(googleToken);
-          calendars = allCalendars;
           const excludedCals = new Set(settings.excludedCalendarIds);
-          const includedCalendars = allCalendars.filter((c) => !excludedCals.has(c.id));
-          if (includedCalendars.length > 0) {
-            events = await fetchTodayEvents(includedCalendars, googleToken);
+          const cachedCals = settings.cachedCalendars;
+
+          if (cachedCals.length > 0) {
+            calendars = cachedCals;
+            const included = cachedCals.filter((c) => !excludedCals.has(c.id));
+            if (included.length > 0) {
+              events = await fetchTodayEvents(included, googleToken);
+            }
+            fetchCalendarList(googleToken)
+              .then((fresh) => useSettingsStore.getState().setCachedCalendars(fresh))
+              .catch(() => {});
+          } else {
+            const allCalendars = await fetchCalendarList(googleToken);
+            calendars = allCalendars;
+            await useSettingsStore.getState().setCachedCalendars(allCalendars);
+            const included = allCalendars.filter((c) => !excludedCals.has(c.id));
+            if (included.length > 0) {
+              events = await fetchTodayEvents(included, googleToken);
+            }
           }
         } catch (e) {
           console.error('[deckStore] calendar fetch error:', e);
         }
       }
 
+      const dismissed = new Set(settings.dismissedCalendarEventIds);
+      events = events.filter((e) => !dismissed.has(e.id));
+
       const cards = buildDeckCards(tasks, projects, events);
-      set({ queue: cards, projects, calendars, totalCount: cards.length, doneCount: 0, isLoading: false });
+      set({ queue: cards, projects, calendars, totalCount: cards.length, doneCount: 0, laterCount: 0, isLoading: false });
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
       if (e instanceof TodoistAuthError) {
+        useAuthStore.getState().setTodoistToken(null);
         set({ isLoading: false, error: 'invalid_token' });
       } else {
         set({ isLoading: false, error: 'network' });

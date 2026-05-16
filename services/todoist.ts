@@ -3,6 +3,7 @@ const BASE = 'https://api.todoist.com/api/v1';
 export interface TodoistTask {
   id: string;
   content: string;
+  description?: string;
   priority: 1 | 2 | 3 | 4;
   due: { date: string; datetime?: string | null } | null;
   project_id: string;
@@ -27,7 +28,7 @@ async function get<T>(path: string, token: string): Promise<T> {
   return res.json();
 }
 
-const TASK_FILTER = encodeURIComponent('today | overdue | no date');
+const TASK_FILTER = encodeURIComponent('(today | overdue | no date) & !#Templates');
 
 export async function fetchTasks(token: string): Promise<TodoistTask[]> {
   const all: TodoistTask[] = [];
@@ -50,10 +51,17 @@ export async function fetchTasks(token: string): Promise<TodoistTask[]> {
 export async function closeTask(taskId: string, token: string): Promise<void> {
   const res = await fetch(`${BASE}/tasks/${taskId}/close`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
   });
-  if (res.status === 401) throw new TodoistAuthError('Invalid token');
-  if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[todoist] closeTask ${res.status}:`, body);
+    if (res.status === 401) throw new TodoistAuthError('Invalid token');
+    throw new Error(`Todoist API error: ${res.status}`);
+  }
 }
 
 export async function fetchProjects(token: string): Promise<TodoistProject[]> {

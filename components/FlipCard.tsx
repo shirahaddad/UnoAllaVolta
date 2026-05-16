@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import {
   Animated,
+  Dimensions,
+  Linking,
   PanResponder,
   StyleSheet,
   Text,
@@ -8,6 +10,34 @@ import {
   View,
 } from 'react-native';
 import { Card } from '@/store/deckStore';
+
+const CARD_WIDTH = Dimensions.get('window').width - 48;
+
+const URL_REGEX = /https?:\/\/\S+/g;
+
+function DescriptionText({ text }: { text: string }) {
+  const preview = text.length > 300 ? text.slice(0, 300) + '…' : text;
+  const parts: { str: string; isUrl: boolean }[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  URL_REGEX.lastIndex = 0;
+  while ((m = URL_REGEX.exec(preview)) !== null) {
+    if (m.index > last) parts.push({ str: preview.slice(last, m.index), isUrl: false });
+    parts.push({ str: m[0], isUrl: true });
+    last = m.index + m[0].length;
+  }
+  if (last < preview.length) parts.push({ str: preview.slice(last), isUrl: false });
+
+  return (
+    <Text style={styles.description} numberOfLines={4}>
+      {parts.map((p, i) =>
+        p.isUrl
+          ? <Text key={i} style={styles.link} onPress={() => Linking.openURL(p.str)}>{p.str}</Text>
+          : <Text key={i}>{p.str}</Text>
+      )}
+    </Text>
+  );
+}
 
 const SWIPE_THRESHOLD = 100;
 
@@ -85,6 +115,7 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
         </View>
         <Text style={styles.title}>{card.title}</Text>
         <Text style={styles.subtitle}>{card.subtitle}</Text>
+        {card.description ? <DescriptionText text={card.description} /> : null}
       </Animated.View>
 
       <View style={styles.actions}>
@@ -107,8 +138,8 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   card: {
-    width: 320,
-    minHeight: 200,
+    width: CARD_WIDTH,
+    minHeight: 220,
     backgroundColor: '#1A1A1A',
     borderRadius: 20,
     padding: 28,
@@ -156,6 +187,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: '#8A8A8A',
+  },
+  description: {
+    fontSize: 14,
+    color: '#6A6A6A',
+    lineHeight: 20,
+  },
+  link: {
+    color: '#4A9BAF',
+    textDecorationLine: 'underline',
   },
   doneLabel: {
     position: 'absolute',

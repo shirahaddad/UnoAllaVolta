@@ -1,11 +1,12 @@
-import React, { useCallback } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
+import { useGoogleAuthStore } from '@/store/googleAuthStore';
 import { FlipCard } from './FlipCard';
 import { ProgressBar } from './ProgressBar';
 import { EmptyState } from './EmptyState';
@@ -13,29 +14,39 @@ import { EmptyState } from './EmptyState';
 export function CardDeck() {
   const router = useRouter();
   const { todoistToken } = useAuthStore();
+  const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
+  const googleConnected = !!(googleAccessToken || googleEmail);
   const { queue, isLoading, error, markDone, moveLater, fetchCards } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
-      if (todoistToken) fetchCards(todoistToken);
-    }, [todoistToken])
+      if (todoistToken || googleConnected) fetchCards(todoistToken);
+    }, [todoistToken, googleConnected])
   );
 
   const current = queue[0];
+  const [laterSeq, setLaterSeq] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchCards(todoistToken);
+    setIsRefreshing(false);
+  }, [fetchCards, todoistToken]);
 
   function renderBody() {
-    if (!todoistToken) {
+    if (!todoistToken && !googleConnected) {
       return (
         <View style={styles.centered}>
           <Ionicons name="link-outline" size={40} color="#2A2A2A" />
           <Text style={styles.emptyHeading}>No account connected</Text>
           <Text style={styles.emptyHint}>
-            Tap the gear icon to connect your Todoist account.
+            Tap the gear icon to connect Todoist or Google Calendar.
           </Text>
         </View>
       );
     }
-    if (isLoading) {
+    if (isLoading && !isRefreshing) {
       return (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#4A9BAF" />
@@ -58,7 +69,7 @@ export function CardDeck() {
           <Text style={styles.emptyHeading}>Couldn't load tasks</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => fetchCards(todoistToken!)}
+            onPress={() => fetchCards(todoistToken)}
           >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
@@ -68,14 +79,17 @@ export function CardDeck() {
     if (current) {
       return (
         <FlipCard
-          key={current.id}
+          key={current.id + '-' + laterSeq}
           card={current}
           onDone={() => markDone(current.id)}
-          onLater={() => moveLater(current.id)}
+          onLater={() => {
+            if (queue.length === 1) setLaterSeq(s => s + 1);
+            moveLater(current.id);
+          }}
         />
       );
     }
-    return <EmptyState />;
+    return isRefreshing ? null : <EmptyState />;
   }
 
   return (
@@ -89,8 +103,21 @@ export function CardDeck() {
           <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
         </TouchableOpacity>
       </View>
-      {(todoistToken && !error) && <ProgressBar />}
-      {renderBody()}
+      {((todoistToken || googleConnected) && !error && !isLoading) && <ProgressBar />}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#4A9BAF"
+            colors={['#4A9BAF']}
+          />
+        }
+      >
+        {renderBody()}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -108,6 +135,12 @@ const styles = StyleSheet.create({
   },
   gearButton: {
     padding: 6,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   centered: {
     flex: 1,

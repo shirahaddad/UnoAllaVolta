@@ -66,10 +66,11 @@ export const useGoogleAuthStore = create<GoogleAuthState>((set, get) => ({
 
   getValidToken: async () => {
     const { accessToken, refreshToken, expiresAt } = get();
-    if (!refreshToken) return null;
 
     const isExpired = !expiresAt || Date.now() > expiresAt - 60_000;
     if (!isExpired && accessToken) return accessToken;
+
+    if (!refreshToken) return null;
 
     try {
       const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -85,8 +86,10 @@ export const useGoogleAuthStore = create<GoogleAuthState>((set, get) => ({
       const data = await res.json();
       if (!data.access_token) return null;
       const newExpiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
-      await SecureStore.setItemAsync(KEY_ACCESS, data.access_token);
-      await SecureStore.setItemAsync(KEY_EXPIRES, String(newExpiresAt));
+      await Promise.all([
+        SecureStore.setItemAsync(KEY_ACCESS, data.access_token),
+        SecureStore.setItemAsync(KEY_EXPIRES, String(newExpiresAt)),
+      ]);
       set({ accessToken: data.access_token, expiresAt: newExpiresAt });
       return data.access_token as string;
     } catch {

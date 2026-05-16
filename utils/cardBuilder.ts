@@ -33,20 +33,20 @@ export function buildDeckCards(
     return (a.created_at ?? '').localeCompare(b.created_at ?? '');
   });
 
-  const eventCards: Card[] = sortedEvents.map((event, i) => ({
+  const eventCards: Card[] = sortedEvents.map((event) => ({
     id: event.id,
     type: 'calendar' as const,
     title: event.summary,
     subtitle: `${formatEventTime(event)} · ${event.calendarName}`,
-    order: i + 1,
+    description: event.description,
   }));
 
-  const taskCards: Card[] = sortedTasks.map((task, i) => ({
+  const taskCards: Card[] = sortedTasks.map((task) => ({
     id: task.id,
     type: 'task' as const,
     title: task.content,
     subtitle: `${projectMap[task.project_id] ?? 'Inbox'} · ${formatDueTime(task.due)}`,
-    order: eventCards.length + i + 1,
+    description: task.description || undefined,
   }));
 
   return [...eventCards, ...taskCards];

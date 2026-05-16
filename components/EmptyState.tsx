@@ -1,16 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity } from 'react-native';
+
+const EMOJIS = ['🎉', '🎊', '✨', '🌟', '🥳', '🎈', '🏆', '💫', '🌈', '🎯', '🦄', '🌸', '🎶', '🍀', '🎁'];
 
 const SUGGESTIONS = [
   'Read a book',
   'Take a walk',
-  'Call someone you love',
-  'Play a game',
+  'Text someone you love',
+  'Play a videogame',
   'Take a nap',
-  'Make something with your hands',
+  'How about crochet',
+  'Go have fun',
+  'Listen to music',
 ];
 
 export function EmptyState({ onPeekTomorrow }: { onPeekTomorrow?: () => void }) {
+  const [emoji] = useState(() => EMOJIS[Math.floor(Math.random() * EMOJIS.length)]);
   const [suggestion] = useState(() => SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)]);
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -24,7 +29,7 @@ export function EmptyState({ onPeekTomorrow }: { onPeekTomorrow?: () => void }) 
 
   return (
     <Animated.View style={[styles.container, { opacity }]}>
-      <Animated.Text style={[styles.emoji, { transform: [{ scale }] }]}>🎉</Animated.Text>
+      <Animated.Text style={[styles.emoji, { transform: [{ scale }] }]}>{emoji}</Animated.Text>
       <Text style={styles.heading}>You're all done!</Text>
       <Text style={styles.suggestion}>{suggestion}</Text>
       {onPeekTomorrow && (

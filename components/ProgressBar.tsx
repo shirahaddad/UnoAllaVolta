@@ -3,13 +3,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useDeckStore } from '@/store/deckStore';
 
 export function ProgressBar() {
-  const { queue } = useDeckStore();
+  const { queue, doneCount, laterCount, totalCount } = useDeckStore();
 
-  const Y = queue.length;
-  const X = queue[0]?.order ?? 1;
-  const highlightIndex = Math.min(X, Y) - 1;
+  const current = laterCount + 1;
+  const total = totalCount - doneCount;
+  const highlightIndex = laterCount;
 
-  if (Y === 0) {
+  if (queue.length === 0) {
     return (
       <View style={styles.container}>
         <Text style={styles.label}>All done</Text>
@@ -19,9 +19,9 @@ export function ProgressBar() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{X} of {Y}</Text>
+      <Text style={styles.label}>{current} of {total}</Text>
       <View style={styles.track}>
-        {Array.from({ length: Y }).map((_, i) => (
+        {Array.from({ length: total > 0 ? total : 1 }).map((_, i) => (
           <View
             key={i}
             style={[styles.segment, i === highlightIndex && styles.segmentActive]}

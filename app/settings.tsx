@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -13,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, TODOIST_CLIENT_ID } from '@/store/authStore';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID } from '@/store/googleAuthStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -24,11 +23,28 @@ const REDIRECT_URI = 'https://shirahaddad.github.io/UnoAllaVolta/auth.html';
 export default function SettingsScreen() {
   const router = useRouter();
   const { todoistToken, setTodoistToken } = useAuthStore();
-  const { projects, calendars: deckCalendars } = useDeckStore();
-  const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar } = useSettingsStore();
-  const { email: googleEmail, clearTokens, getValidToken } = useGoogleAuthStore();
+  const handleTodoistConnect = async () => {
+    const authUrl =
+      'https://todoist.com/oauth/authorize?' +
+      new URLSearchParams({
+        client_id: TODOIST_CLIENT_ID,
+        scope: 'data:read,data:read_write',
+        state: 'todoist',
+        redirect_uri: REDIRECT_URI,
+      }).toString();
+    const result = await WebBrowser.openBrowserAsync(authUrl);
+    console.log('[settings] todoist browser result:', JSON.stringify(result));
+  };
 
-  const [draft, setDraft] = useState('');
+  const handleTodoistDisconnect = async () => {
+    await setTodoistToken(null);
+  };
+  const { projects, calendars: deckCalendars } = useDeckStore();
+  const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar, resetDismissedCalendarEvents } = useSettingsStore();
+  const { email: googleEmail, accessToken: googleAccessToken, clearTokens, getValidToken } = useGoogleAuthStore();
+  const googleConnected = !!(googleAccessToken || googleEmail);
+
+  const [reimportDone, setReimportDone] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [calendarsExpanded, setCalendarsExpanded] = useState(false);
   const [calendarList, setCalendarList] = useState<GoogleCalendar[]>(deckCalendars);
@@ -40,17 +56,16 @@ export default function SettingsScreen() {
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
         response_type: 'code',
-        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        scope: 'https://www.googleapis.com/auth/calendar.readonly openid email',
         access_type: 'offline',
         prompt: 'consent',
+        state: 'google',
       }).toString();
-
-    // Token exchange is handled by app/auth.tsx when the deep link returns
-    await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
+    await WebBrowser.openBrowserAsync(authUrl);
   };
 
   useEffect(() => {
-    if (googleEmail) {
+    if (googleConnected) {
       getValidToken().then(async (token) => {
         if (token) {
           const cals = await fetchCalendarList(token);
@@ -58,27 +73,18 @@ export default function SettingsScreen() {
         }
       });
     }
-  }, [googleEmail]);
-
-  const handleSave = async () => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    await setTodoistToken(trimmed);
-    setDraft('');
-  };
-
-  const handleDisconnect = async () => {
-    await setTodoistToken(null);
-  };
+  }, [googleConnected]);
 
   const handleGoogleDisconnect = async () => {
     await clearTokens();
     setCalendarList([]);
   };
 
-  const maskedToken = todoistToken
-    ? todoistToken.slice(0, 6) + '••••••••••••••••' + todoistToken.slice(-4)
-    : null;
+  const handleResetCalendarEvents = async () => {
+    await resetDismissedCalendarEvents();
+    setReimportDone(true);
+    setTimeout(() => setReimportDone(false), 1500);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,35 +111,14 @@ export default function SettingsScreen() {
                   <View style={styles.dot} />
                   <Text style={styles.connectedText}>Connected</Text>
                 </View>
-                <Text style={styles.maskedToken}>{maskedToken}</Text>
-                <TouchableOpacity style={styles.disconnectButton} onPress={handleDisconnect}>
+                <TouchableOpacity style={styles.disconnectButton} onPress={handleTodoistDisconnect}>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.box}>
-                <Text style={styles.inputLabel}>API Token</Text>
-                <TextInput
-                  style={styles.input}
-                  value={draft}
-                  onChangeText={setDraft}
-                  placeholder="Paste your token here"
-                  placeholderTextColor="#3A3A3A"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Text style={styles.hint}>
-                  Todoist → Settings → Integrations → Developer → API token
-                </Text>
-                <TouchableOpacity
-                  style={[styles.saveButton, !draft.trim() && styles.saveButtonDisabled]}
-                  onPress={handleSave}
-                  disabled={!draft.trim()}
-                >
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.saveButton} onPress={handleTodoistConnect}>
+                <Text style={styles.saveButtonText}>Connect Todoist</Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -175,7 +160,7 @@ export default function SettingsScreen() {
           {/* GOOGLE CALENDAR */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>GOOGLE CALENDAR</Text>
-            {googleEmail ? (
+            {googleConnected ? (
               <View style={styles.box}>
                 <View style={styles.connectedRow}>
                   <View style={styles.dot} />
@@ -183,6 +168,11 @@ export default function SettingsScreen() {
                 </View>
                 <TouchableOpacity style={styles.disconnectButton} onPress={handleGoogleDisconnect}>
                   <Text style={styles.disconnectText}>Disconnect</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.disconnectButton} onPress={handleResetCalendarEvents}>
+                  <Text style={[styles.disconnectText, reimportDone && { color: '#4A9BAF' }]}>
+                    {reimportDone ? 'Done ✓' : 'Re-import all events'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -196,7 +186,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* CALENDAR SELECTION */}
-          {googleEmail && calendarList.length > 0 && (
+          {googleConnected && calendarList.length > 0 && (
             <View style={styles.section}>
               <TouchableOpacity
                 style={styles.collapsibleHeader}
@@ -302,11 +292,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F0EFEB',
   },
-  maskedToken: {
-    fontSize: 13,
-    color: '#8A8A8A',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
   disconnectButton: {
     alignSelf: 'flex-start',
     borderWidth: 1,
@@ -320,35 +305,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8A8A8A',
   },
-  inputLabel: {
-    fontSize: 13,
-    color: '#8A8A8A',
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#0F0F0F',
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#F0EFEB',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  hint: {
-    fontSize: 12,
-    color: '#8A8A8A',
-    lineHeight: 18,
-  },
   saveButton: {
     backgroundColor: '#4A9BAF',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.4,
   },
   saveButtonText: {
     fontSize: 15,

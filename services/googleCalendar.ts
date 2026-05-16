@@ -8,6 +8,7 @@ export interface GoogleCalendar {
 export interface GoogleEvent {
   id: string;
   summary: string;
+  description?: string;
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
   calendarId: string;
@@ -51,6 +52,7 @@ export async function fetchTodayEvents(
       return (data.items ?? []).map((e: any) => ({
         id: `${cal.id}::${e.id}`,
         summary: e.summary ?? '(No title)',
+        description: e.description as string | undefined,
         start: e.start,
         end: e.end,
         calendarId: cal.id,
