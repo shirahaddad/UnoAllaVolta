@@ -27,9 +27,22 @@ interface DeckState {
   totalCount: number;
   isLoading: boolean;
   error: ErrorKind;
+  pendingUndo: Card | null;
   markDone: (id: string) => void;
+  commitPendingUndo: () => void;
+  cancelPendingUndo: () => void;
   moveLater: (id: string) => void;
   fetchCards: (token?: string | null) => Promise<void>;
+}
+
+function _commit(card: Card) {
+  if (card.type === 'task') {
+    const token = useAuthStore.getState().todoistToken;
+    if (token) closeTask(card.id, token).catch((e) => console.error('[todoist] closeTask failed:', e));
+  }
+  if (card.type === 'calendar') {
+    useSettingsStore.getState().dismissCalendarEvent(card.id).catch(console.error);
+  }
 }
 
 export const useDeckStore = create<DeckState>((set) => ({
@@ -41,25 +54,35 @@ export const useDeckStore = create<DeckState>((set) => ({
   totalCount: 0,
   isLoading: false,
   error: null,
+  pendingUndo: null,
 
   markDone: (id) =>
     set((state) => {
       const card = state.queue.find((c) => c.id === id);
-      if (card?.type === 'task') {
-        const token = useAuthStore.getState().todoistToken;
-        if (token) closeTask(id, token).catch((e) => {
-          if (e instanceof TodoistAuthError) useAuthStore.getState().setTodoistToken(null);
-          console.error('[todoist] closeTask failed:', e);
-        });
-      }
-      if (card?.type === 'calendar') {
-        useSettingsStore.getState().dismissCalendarEvent(id).catch(console.error);
-      }
+      if (!card) return state;
+      if (state.pendingUndo) _commit(state.pendingUndo);
       const newQueue = state.queue.filter((c) => c.id !== id);
       return {
         queue: newQueue,
         doneCount: state.doneCount + 1,
         laterCount: state.laterCount >= newQueue.length ? 0 : state.laterCount,
+        pendingUndo: card,
+      };
+    }),
+
+  commitPendingUndo: () =>
+    set((state) => {
+      if (state.pendingUndo) _commit(state.pendingUndo);
+      return { pendingUndo: null };
+    }),
+
+  cancelPendingUndo: () =>
+    set((state) => {
+      if (!state.pendingUndo) return state;
+      return {
+        pendingUndo: null,
+        queue: [state.pendingUndo, ...state.queue],
+        doneCount: Math.max(0, state.doneCount - 1),
       };
     }),
 
@@ -132,7 +155,6 @@ export const useDeckStore = create<DeckState>((set) => ({
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
       if (e instanceof TodoistAuthError) {
-        useAuthStore.getState().setTodoistToken(null);
         set({ isLoading: false, error: 'invalid_token' });
       } else {
         set({ isLoading: false, error: 'network' });

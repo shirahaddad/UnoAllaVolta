@@ -16,16 +16,28 @@ export const useAuthStore = create<AuthState>((set) => ({
   todoistToken: null,
 
   setTodoistToken: async (token) => {
-    if (token) {
-      await SecureStore.setItemAsync(SECURE_KEY, token);
-    } else {
-      await SecureStore.deleteItemAsync(SECURE_KEY);
+    try {
+      if (token) {
+        await SecureStore.setItemAsync(SECURE_KEY, token);
+        const verify = await SecureStore.getItemAsync(SECURE_KEY);
+        if (!verify) console.warn('[authStore] SecureStore write succeeded but read-back returned null');
+      } else {
+        await SecureStore.deleteItemAsync(SECURE_KEY);
+      }
+      set({ todoistToken: token });
+    } catch (e) {
+      console.error('[authStore] setTodoistToken failed:', e);
+      set({ todoistToken: token });
     }
-    set({ todoistToken: token });
   },
 
   loadFromStorage: async () => {
-    const token = await SecureStore.getItemAsync(SECURE_KEY);
-    set({ todoistToken: token });
+    try {
+      const token = await SecureStore.getItemAsync(SECURE_KEY);
+      console.log('[authStore] loadFromStorage todoistToken:', token ? 'present' : 'null');
+      set({ todoistToken: token });
+    } catch (e) {
+      console.error('[authStore] loadFromStorage failed:', e);
+    }
   },
 }));

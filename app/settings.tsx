@@ -17,6 +17,7 @@ import { useGoogleAuthStore, GOOGLE_CLIENT_ID } from '@/store/googleAuthStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
+import { fetchProjects, TodoistProject } from '@/services/todoist';
 
 const REDIRECT_URI = 'https://shirahaddad.github.io/UnoAllaVolta/auth.html';
 
@@ -28,18 +29,26 @@ export default function SettingsScreen() {
       'https://todoist.com/oauth/authorize?' +
       new URLSearchParams({
         client_id: TODOIST_CLIENT_ID,
-        scope: 'data:read,data:read_write',
+        scope: 'data:read_write',
         state: 'todoist',
         redirect_uri: REDIRECT_URI,
       }).toString();
-    const result = await WebBrowser.openBrowserAsync(authUrl);
-    console.log('[settings] todoist browser result:', JSON.stringify(result));
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
+    console.log('[settings] todoist auth result:', JSON.stringify(result));
+    if (result.type === 'success') {
+      const urlParams = new URLSearchParams(result.url.split('?')[1] ?? '');
+      const code = urlParams.get('code');
+      const oauthState = urlParams.get('state');
+      if (code && oauthState) {
+        router.push({ pathname: '/auth', params: { code, state: oauthState } });
+      }
+    }
   };
 
   const handleTodoistDisconnect = async () => {
     await setTodoistToken(null);
   };
-  const { projects, calendars: deckCalendars } = useDeckStore();
+  const { calendars: deckCalendars } = useDeckStore();
   const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar, resetDismissedCalendarEvents } = useSettingsStore();
   const { email: googleEmail, accessToken: googleAccessToken, clearTokens, getValidToken } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
@@ -47,6 +56,7 @@ export default function SettingsScreen() {
   const [reimportDone, setReimportDone] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [calendarsExpanded, setCalendarsExpanded] = useState(false);
+  const [projectList, setProjectList] = useState<TodoistProject[]>([]);
   const [calendarList, setCalendarList] = useState<GoogleCalendar[]>(deckCalendars);
 
   const handleGoogleConnect = async () => {
@@ -61,8 +71,25 @@ export default function SettingsScreen() {
         prompt: 'consent',
         state: 'google',
       }).toString();
-    await WebBrowser.openBrowserAsync(authUrl);
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
+    console.log('[settings] google auth result:', JSON.stringify(result));
+    if (result.type === 'success') {
+      const urlParams = new URLSearchParams(result.url.split('?')[1] ?? '');
+      const code = urlParams.get('code');
+      const oauthState = urlParams.get('state');
+      if (code && oauthState) {
+        router.push({ pathname: '/auth', params: { code, state: oauthState } });
+      }
+    }
   };
+
+  useEffect(() => {
+    if (todoistToken) {
+      fetchProjects(todoistToken).then(setProjectList).catch(console.error);
+    } else {
+      setProjectList([]);
+    }
+  }, [todoistToken]);
 
   useEffect(() => {
     if (googleConnected) {
@@ -123,7 +150,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* PROJECT SELECTION */}
-          {todoistToken && projects.length > 0 && (
+          {todoistToken && projectList.length > 0 && (
             <View style={styles.section}>
               <TouchableOpacity
                 style={styles.collapsibleHeader}
@@ -138,7 +165,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
               {projectsExpanded && (
                 <View style={styles.chipContainer}>
-                  {projects.map((project) => {
+                  {projectList.map((project) => {
                     const included = !excludedProjectIds.includes(project.id);
                     return (
                       <TouchableOpacity

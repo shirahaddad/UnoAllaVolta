@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -16,7 +16,7 @@ export function CardDeck() {
   const { todoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, markDone, moveLater, fetchCards } = useDeckStore();
+  const { queue, isLoading, error, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -26,6 +26,23 @@ export function CardDeck() {
 
   const current = queue[0];
   const [laterSeq, setLaterSeq] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (pendingUndo) {
+      timerRef.current = setTimeout(() => {
+        commitPendingUndo();
+        timerRef.current = null;
+      }, 3000);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [pendingUndo?.id]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
@@ -59,6 +76,12 @@ export function CardDeck() {
           <Ionicons name="warning-outline" size={40} color="#8A8A8A" />
           <Text style={styles.emptyHeading}>Token invalid</Text>
           <Text style={styles.emptyHint}>Go to Settings to reconnect your Todoist account.</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchCards(todoistToken)}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -118,6 +141,14 @@ export function CardDeck() {
       >
         {renderBody()}
       </ScrollView>
+      {pendingUndo && (
+        <View style={styles.undoToast}>
+          <Text style={styles.undoLabel}>Marked as done</Text>
+          <TouchableOpacity onPress={cancelPendingUndo} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.undoButton}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -173,5 +204,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#4A9BAF',
     fontWeight: '500',
+  },
+  undoToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  undoLabel: {
+    fontSize: 14,
+    color: '#F0EFEB',
+  },
+  undoButton: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A9BAF',
   },
 });

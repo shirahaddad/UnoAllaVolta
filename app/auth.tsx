@@ -18,7 +18,7 @@ export default function AuthCallback() {
     const state = Array.isArray(params.state) ? params.state[0] : params.state;
 
     if (!code) {
-      setTimeout(() => router.replace('/settings'), 800);
+      setTimeout(() => router.back(), 800);
       return;
     }
 
@@ -36,6 +36,7 @@ export default function AuthCallback() {
             }).toString(),
           });
           const data = await res.json();
+          console.log('[auth] todoist token exchange response:', JSON.stringify(data));
           if (data.access_token) {
             await setTodoistToken(data.access_token);
             setStatus('Todoist connected!');
@@ -71,7 +72,7 @@ export default function AuthCallback() {
       } catch (e) {
         console.error('[auth] error:', e);
       }
-      setTimeout(() => router.replace('/settings'), 800);
+      setTimeout(() => router.back(), 800);
     })();
   }, []);
 

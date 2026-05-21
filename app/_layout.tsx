@@ -1,7 +1,8 @@
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import 'react-native-reanimated';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -29,6 +30,18 @@ export default function RootLayout() {
   useEffect(() => {
     Promise.all([loadAuth(), loadSettings(), loadGoogleAuth()])
       .then(() => setReady(true));
+  }, []);
+
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (appStateRef.current.match(/inactive|background/) && next === 'active') {
+        loadAuth().catch(console.error);
+        loadGoogleAuth().catch(console.error);
+      }
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
   }, []);
 
   if (!ready) return null;
