@@ -56,13 +56,30 @@ The read-back verification added in b28cbd8 would log a warning if the write suc
 
 ## Next steps
 
-### Step 1 — collect logs when it happens
+### Step 1 — read the in-app error message (no logs needed)
 
-Connect the Android device, run `npx expo start`, and watch the terminal when the error occurs. Look for:
+The error screen now shows two different messages depending on what `authStore.tokenFoundInStorage` is at the time of the error:
 
-- `[authStore] loadFromStorage todoistToken: null` → SecureStore lost the token → **hypothesis 1**
-- `[deckStore] fetchCards error:` with a 401 detail → real API rejection → **hypothesis 2**
-- Token logged as present but error still shown → **hypothesis 3** (race condition)
+| Message shown | Meaning | Hypothesis |
+|---------------|---------|------------|
+| **"Todoist disconnected — Your session was lost"** | SecureStore returned null on last load; token is gone from storage | **Hypothesis 1** (SecureStore key invalidation) |
+| **"Todoist session error — This may be temporary"** | Token was present in storage but Todoist returned 401 | **Hypothesis 2** (real API rejection or transient) |
+
+The "Reconnect Todoist" button on both screens navigates directly to Settings. The "Retry" button only appears on the session-error variant.
+
+This works in preview builds with no dev server needed.
+
+### Step 1b — logs via adb (secondary option, needs USB cable)
+
+Even with a preview build, `console.log` output is readable via Android Debug Bridge if USB debugging is enabled on the device:
+
+```
+adb logcat | grep ReactNativeJS
+```
+
+Look for:
+- `[authStore] loadFromStorage todoistToken: null` → hypothesis 1
+- `[deckStore] fetchCards error:` → hypothesis 2
 
 ### Step 2 — if hypothesis 1 (SecureStore key loss)
 
@@ -72,29 +89,10 @@ Options in order of invasiveness:
 2. **Detect null-after-connect**: if `loadFromStorage` returns null but the user was previously connected (store a `was_connected` flag in non-encrypted AsyncStorage), show a reconnect prompt instead of silently failing.
 3. **Fall back to AsyncStorage**: store a second copy of the token in `AsyncStorage` (less secure, but the token itself is not the user's password — it's an OAuth token that can be revoked). Use it as a recovery path when SecureStore returns null.
 
-### Step 3 — improve the error UX regardless
-
-The current "Token invalid" screen has a **Retry** button, which will keep failing if the token is genuinely gone. It should instead have a **"Reconnect Todoist"** button that navigates to Settings, so the user can re-authenticate without hunting through menus.
-
-```tsx
-// components/CardDeck.tsx — replace the invalid_token error block
-if (error === 'invalid_token') {
-  return (
-    <View style={styles.centered}>
-      <Ionicons name="warning-outline" size={40} color="#8A8A8A" />
-      <Text style={styles.emptyHeading}>Todoist disconnected</Text>
-      <Text style={styles.emptyHint}>Your session expired. Reconnect to continue.</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/settings')}>
-        <Text style={styles.retryText}>Reconnect Todoist</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-```
-
 ## Status
 
 | Date | Action | Outcome |
 |------|--------|---------|
-| 2026-05-21 | Removed token auto-clear on 401, added SecureStore read-back, added AppState listener (b28cbd8) | Deployed; waiting to see if error recurs |
-| — | Collect logs on next occurrence | Pending |
+| 2026-05-21 | Removed token auto-clear on 401, added SecureStore read-back, added AppState listener (b28cbd8) | Deployed; needs new preview build |
+| 2026-05-21 | Added `tokenFoundInStorage` to authStore; error screen now shows "session lost" vs "session error" to distinguish hypotheses without needing logs | Needs new preview build to test |
+| — | Next error occurrence: read which message appears | Pending |

@@ -13,7 +13,7 @@ import { EmptyState } from './EmptyState';
 
 export function CardDeck() {
   const router = useRouter();
-  const { todoistToken } = useAuthStore();
+  const { todoistToken, tokenFoundInStorage } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
   const { queue, isLoading, error, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
@@ -71,16 +71,25 @@ export function CardDeck() {
       );
     }
     if (error === 'invalid_token') {
+      const tokenMissing = tokenFoundInStorage === false;
       return (
         <View style={styles.centered}>
           <Ionicons name="warning-outline" size={40} color="#8A8A8A" />
-          <Text style={styles.emptyHeading}>Token invalid</Text>
-          <Text style={styles.emptyHint}>Go to Settings to reconnect your Todoist account.</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => fetchCards(todoistToken)}
-          >
-            <Text style={styles.retryText}>Retry</Text>
+          <Text style={styles.emptyHeading}>
+            {tokenMissing ? 'Todoist disconnected' : 'Todoist session error'}
+          </Text>
+          <Text style={styles.emptyHint}>
+            {tokenMissing
+              ? 'Your session was lost. Reconnect to continue.'
+              : 'Todoist rejected your session. This may be temporary.'}
+          </Text>
+          {!tokenMissing && (
+            <TouchableOpacity style={styles.retryButton} onPress={() => fetchCards(todoistToken)}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/settings')}>
+            <Text style={styles.retryText}>Reconnect Todoist</Text>
           </TouchableOpacity>
         </View>
       );

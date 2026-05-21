@@ -8,12 +8,14 @@ const SECURE_KEY = 'todoist_token';
 
 interface AuthState {
   todoistToken: string | null;
+  tokenFoundInStorage: boolean | null;
   setTodoistToken: (token: string | null) => Promise<void>;
   loadFromStorage: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   todoistToken: null,
+  tokenFoundInStorage: null,
 
   setTodoistToken: async (token) => {
     try {
@@ -35,7 +37,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const token = await SecureStore.getItemAsync(SECURE_KEY);
       console.log('[authStore] loadFromStorage todoistToken:', token ? 'present' : 'null');
-      set({ todoistToken: token });
+      set({ todoistToken: token, tokenFoundInStorage: token !== null });
     } catch (e) {
       console.error('[authStore] loadFromStorage failed:', e);
     }
