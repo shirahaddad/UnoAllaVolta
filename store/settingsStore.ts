@@ -5,16 +5,23 @@ import { GoogleCalendar } from '@/services/googleCalendar';
 const KEY_PROJECTS = 'excluded_project_ids';
 const KEY_CALENDARS = 'excluded_calendar_ids';
 const KEY_DISMISSED = 'dismissed_calendar_events';
+const KEY_LATER = 'later_ids';
+
+function localDateStr() {
+  return new Date().toLocaleDateString('en-CA');
+}
 
 interface SettingsState {
   excludedProjectIds: string[];
   excludedCalendarIds: string[];
   dismissedCalendarEventIds: string[];
+  laterIds: string[];
   cachedCalendars: GoogleCalendar[];
   toggleProject: (id: string) => Promise<void>;
   toggleCalendar: (id: string) => Promise<void>;
   dismissCalendarEvent: (id: string) => Promise<void>;
   resetDismissedCalendarEvents: () => Promise<void>;
+  addLaterId: (id: string) => Promise<void>;
   setCachedCalendars: (cals: GoogleCalendar[]) => Promise<void>;
   loadFromStorage: () => Promise<void>;
 }
@@ -23,6 +30,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   excludedProjectIds: [],
   excludedCalendarIds: [],
   dismissedCalendarEventIds: [],
+  laterIds: [],
   cachedCalendars: [],
 
   toggleProject: async (id) => {
@@ -40,9 +48,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   dismissCalendarEvent: async (id) => {
-    const today = new Date().toISOString().slice(0, 10);
     const next = [...new Set([...get().dismissedCalendarEventIds, id])];
-    await SecureStore.setItemAsync(KEY_DISMISSED, JSON.stringify({ date: today, ids: next }));
+    await SecureStore.setItemAsync(KEY_DISMISSED, JSON.stringify({ date: localDateStr(), ids: next }));
     set({ dismissedCalendarEventIds: next });
   },
 
@@ -51,23 +58,34 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ dismissedCalendarEventIds: [] });
   },
 
+  addLaterId: async (id) => {
+    const next = [...new Set([...get().laterIds, id])];
+    await SecureStore.setItemAsync(KEY_LATER, JSON.stringify({ date: localDateStr(), ids: next }));
+    set({ laterIds: next });
+  },
+
   setCachedCalendars: async (cals) => {
     set({ cachedCalendars: cals });
   },
 
   loadFromStorage: async () => {
-    const [rawProjects, rawCalendars, rawDismissed] = await Promise.all([
+    const [rawProjects, rawCalendars, rawDismissed, rawLater] = await Promise.all([
       SecureStore.getItemAsync(KEY_PROJECTS),
       SecureStore.getItemAsync(KEY_CALENDARS),
       SecureStore.getItemAsync(KEY_DISMISSED),
+      SecureStore.getItemAsync(KEY_LATER),
     ]);
     try {
+      const today = localDateStr();
       if (rawProjects) set({ excludedProjectIds: JSON.parse(rawProjects) });
       if (rawCalendars) set({ excludedCalendarIds: JSON.parse(rawCalendars) });
       if (rawDismissed) {
         const { date, ids } = JSON.parse(rawDismissed) as { date: string; ids: string[] };
-        const today = new Date().toISOString().slice(0, 10);
         if (date === today) set({ dismissedCalendarEventIds: ids });
+      }
+      if (rawLater) {
+        const { date, ids } = JSON.parse(rawLater) as { date: string; ids: string[] };
+        if (date === today) set({ laterIds: ids });
       }
     } catch {
       // ignore malformed data

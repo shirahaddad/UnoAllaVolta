@@ -86,7 +86,8 @@ export const useDeckStore = create<DeckState>((set) => ({
       };
     }),
 
-  moveLater: (id) =>
+  moveLater: (id) => {
+    useSettingsStore.getState().addLaterId(id).catch(console.error);
     set((state) => {
       const card = state.queue.find((c) => c.id === id);
       if (!card) return state;
@@ -95,12 +96,13 @@ export const useDeckStore = create<DeckState>((set) => ({
         queue: [...state.queue.filter((c) => c.id !== id), card],
         laterCount: nextLaterCount >= state.queue.length ? 0 : nextLaterCount,
       };
-    }),
+    });
+  },
 
   fetchCards: async (token) => {
     set({ isLoading: true, error: null });
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = new Date().toLocaleDateString('en-CA');
       const settings = useSettingsStore.getState();
 
       const [todoistResult, googleToken] = await Promise.all([
@@ -151,7 +153,13 @@ export const useDeckStore = create<DeckState>((set) => ({
       events = events.filter((e) => !dismissed.has(e.id));
 
       const cards = buildDeckCards(tasks, projects, events);
-      set({ queue: cards, projects, calendars, totalCount: cards.length, doneCount: 0, laterCount: 0, isLoading: false });
+      const laterSet = new Set(useSettingsStore.getState().laterIds);
+      const laterCount = cards.filter(c => laterSet.has(c.id)).length;
+      const ordered = [
+        ...cards.filter(c => !laterSet.has(c.id)),
+        ...cards.filter(c => laterSet.has(c.id)),
+      ];
+      set({ queue: ordered, projects, calendars, totalCount: ordered.length, doneCount: 0, laterCount, isLoading: false });
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
       if (e instanceof TodoistAuthError) {
