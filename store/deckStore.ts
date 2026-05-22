@@ -62,10 +62,12 @@ export const useDeckStore = create<DeckState>((set) => ({
       if (!card) return state;
       if (state.pendingUndo) _commit(state.pendingUndo);
       const newQueue = state.queue.filter((c) => c.id !== id);
+      const newLaterCount = state.laterCount >= newQueue.length ? 0 : state.laterCount;
+      useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
       return {
         queue: newQueue,
         doneCount: state.doneCount + 1,
-        laterCount: state.laterCount >= newQueue.length ? 0 : state.laterCount,
+        laterCount: newLaterCount,
         pendingUndo: card,
       };
     }),
@@ -79,25 +81,24 @@ export const useDeckStore = create<DeckState>((set) => ({
   cancelPendingUndo: () =>
     set((state) => {
       if (!state.pendingUndo) return state;
+      const newQueue = [state.pendingUndo, ...state.queue];
+      useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), state.laterCount).catch(console.error);
       return {
         pendingUndo: null,
-        queue: [state.pendingUndo, ...state.queue],
+        queue: newQueue,
         doneCount: Math.max(0, state.doneCount - 1),
       };
     }),
 
-  moveLater: (id) => {
-    useSettingsStore.getState().addLaterId(id).catch(console.error);
+  moveLater: (id) =>
     set((state) => {
       const card = state.queue.find((c) => c.id === id);
       if (!card) return state;
-      const nextLaterCount = state.laterCount + 1;
-      return {
-        queue: [...state.queue.filter((c) => c.id !== id), card],
-        laterCount: nextLaterCount >= state.queue.length ? 0 : nextLaterCount,
-      };
-    });
-  },
+      const newQueue = [...state.queue.filter((c) => c.id !== id), card];
+      const newLaterCount = state.laterCount + 1 >= state.queue.length ? 0 : state.laterCount + 1;
+      useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
+      return { queue: newQueue, laterCount: newLaterCount };
+    }),
 
   fetchCards: async (token) => {
     set({ isLoading: true, error: null });
@@ -153,12 +154,20 @@ export const useDeckStore = create<DeckState>((set) => ({
       events = events.filter((e) => !dismissed.has(e.id));
 
       const cards = buildDeckCards(tasks, projects, events);
-      const laterSet = new Set(useSettingsStore.getState().laterIds);
-      const laterCount = cards.filter(c => laterSet.has(c.id)).length;
-      const ordered = [
-        ...cards.filter(c => !laterSet.has(c.id)),
-        ...cards.filter(c => laterSet.has(c.id)),
-      ];
+      const saved = useSettingsStore.getState().savedQueueState;
+      let ordered: typeof cards;
+      let laterCount: number;
+      if (saved && saved.orderedIds.length > 0) {
+        const posMap = new Map(saved.orderedIds.map((id, i) => [id, i]));
+        const known = cards.filter(c => posMap.has(c.id))
+          .sort((a, b) => posMap.get(a.id)! - posMap.get(b.id)!);
+        const brandNew = cards.filter(c => !posMap.has(c.id));
+        ordered = [...known, ...brandNew];
+        laterCount = Math.min(saved.laterCount, Math.max(0, ordered.length - 1));
+      } else {
+        ordered = cards;
+        laterCount = 0;
+      }
       set({ queue: ordered, projects, calendars, totalCount: ordered.length, doneCount: 0, laterCount, isLoading: false });
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);

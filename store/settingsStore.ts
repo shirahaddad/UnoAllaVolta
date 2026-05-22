@@ -5,7 +5,7 @@ import { GoogleCalendar } from '@/services/googleCalendar';
 const KEY_PROJECTS = 'excluded_project_ids';
 const KEY_CALENDARS = 'excluded_calendar_ids';
 const KEY_DISMISSED = 'dismissed_calendar_events';
-const KEY_LATER = 'later_ids';
+const KEY_QUEUE = 'queue_state';
 
 function localDateStr() {
   return new Date().toLocaleDateString('en-CA');
@@ -15,13 +15,13 @@ interface SettingsState {
   excludedProjectIds: string[];
   excludedCalendarIds: string[];
   dismissedCalendarEventIds: string[];
-  laterIds: string[];
+  savedQueueState: { orderedIds: string[]; laterCount: number } | null;
   cachedCalendars: GoogleCalendar[];
   toggleProject: (id: string) => Promise<void>;
   toggleCalendar: (id: string) => Promise<void>;
   dismissCalendarEvent: (id: string) => Promise<void>;
   resetDismissedCalendarEvents: () => Promise<void>;
-  addLaterId: (id: string) => Promise<void>;
+  saveQueueState: (orderedIds: string[], laterCount: number) => Promise<void>;
   setCachedCalendars: (cals: GoogleCalendar[]) => Promise<void>;
   loadFromStorage: () => Promise<void>;
 }
@@ -30,7 +30,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   excludedProjectIds: [],
   excludedCalendarIds: [],
   dismissedCalendarEventIds: [],
-  laterIds: [],
+  savedQueueState: null,
   cachedCalendars: [],
 
   toggleProject: async (id) => {
@@ -58,10 +58,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ dismissedCalendarEventIds: [] });
   },
 
-  addLaterId: async (id) => {
-    const next = [...new Set([...get().laterIds, id])];
-    await SecureStore.setItemAsync(KEY_LATER, JSON.stringify({ date: localDateStr(), ids: next }));
-    set({ laterIds: next });
+  saveQueueState: async (orderedIds, laterCount) => {
+    await SecureStore.setItemAsync(KEY_QUEUE, JSON.stringify({ date: localDateStr(), orderedIds, laterCount }));
+    set({ savedQueueState: { orderedIds, laterCount } });
   },
 
   setCachedCalendars: async (cals) => {
@@ -69,11 +68,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   loadFromStorage: async () => {
-    const [rawProjects, rawCalendars, rawDismissed, rawLater] = await Promise.all([
+    const [rawProjects, rawCalendars, rawDismissed, rawQueue] = await Promise.all([
       SecureStore.getItemAsync(KEY_PROJECTS),
       SecureStore.getItemAsync(KEY_CALENDARS),
       SecureStore.getItemAsync(KEY_DISMISSED),
-      SecureStore.getItemAsync(KEY_LATER),
+      SecureStore.getItemAsync(KEY_QUEUE),
     ]);
     try {
       const today = localDateStr();
@@ -83,9 +82,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const { date, ids } = JSON.parse(rawDismissed) as { date: string; ids: string[] };
         if (date === today) set({ dismissedCalendarEventIds: ids });
       }
-      if (rawLater) {
-        const { date, ids } = JSON.parse(rawLater) as { date: string; ids: string[] };
-        if (date === today) set({ laterIds: ids });
+      if (rawQueue) {
+        const { date, orderedIds, laterCount } = JSON.parse(rawQueue) as { date: string; orderedIds: string[]; laterCount: number };
+        if (date === today) set({ savedQueueState: { orderedIds, laterCount } });
       }
     } catch {
       // ignore malformed data
