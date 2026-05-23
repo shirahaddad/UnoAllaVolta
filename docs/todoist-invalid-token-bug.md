@@ -36,15 +36,18 @@ When this happens, `SecureStore.getItemAsync` returns `null` without throwing. T
 
 **How to confirm:** look for `[authStore] loadFromStorage todoistToken: null` in the logs at the moment the error appears. If SecureStore is the culprit, this log will appear on every launch after the first failure.
 
-### 2. Real 401 from Todoist *(possible but less likely)*
+### 2. Real 401 from Todoist *(confirmed for 2026-05-23 occurrence)*
 
 Todoist OAuth tokens do not expire. They become invalid only if:
 
 - The user revokes access in Todoist → Settings → Integrations → Connected apps
 - The user changes their Todoist account password
 - The OAuth app is suspended by Todoist
+- Todoist has a transient auth server issue
 
-**How to confirm:** check Todoist → Settings → Integrations to see if the app is still listed.
+**2026-05-23 finding:** The app was still listed in Todoist → Preferences → Integrations — so the token was not revoked by the user. The 401 was either a transient Todoist server blip, or the token was silently invalidated on Todoist's side (e.g. after a previous reconnect issued a new token). Checking the integrations page is **not a useful diagnostic** — if the app is listed there, it only rules out user-initiated revocation, not other causes.
+
+**Next diagnostic:** see "Capture Todoist 401 response body" below.
 
 ### 3. Race condition on app resume *(possible)*
 
@@ -55,6 +58,12 @@ Todoist OAuth tokens do not expire. They become invalid only if:
 The read-back verification added in b28cbd8 would log a warning if the write succeeded but the value was unreadable immediately after. No such warning has been observed yet.
 
 ## Next steps
+
+### Step 0 — UX fix: Reconnect Todoist button now clears the stale token
+
+**Problem (observed 2026-05-23):** "Reconnect Todoist" navigated to Settings while `todoistToken` was still non-null in the store. Settings showed "Connected" with a Disconnect button. The user had to manually disconnect and reconnect.
+
+**Fix (implemented):** `CardDeck.tsx` — when the error is "session error" (token was present but rejected), "Reconnect Todoist" now calls `setTodoistToken(null)` before navigating. Settings will see `todoistToken === null` and show the "Connect Todoist" button immediately.
 
 ### Step 1 — read the in-app error message (no logs needed)
 
@@ -81,7 +90,18 @@ Look for:
 - `[authStore] loadFromStorage todoistToken: null` → hypothesis 1
 - `[deckStore] fetchCards error:` → hypothesis 2
 
-### Step 2 — if hypothesis 1 (SecureStore key loss)
+### Step 2 — read the 401 detail on the error screen (implemented)
+
+We now surface Todoist's actual rejection reason directly on the error screen, below the subtitle. No adb cable or developer tools needed.
+
+**What was changed:**
+- `services/todoist.ts` — 401 response body is read and passed as the `TodoistAuthError` message
+- `store/deckStore.ts` — `authErrorDetail` field stores the message from the caught error
+- `components/CardDeck.tsx` — displays `authErrorDetail` in small monospace text on the error screen
+
+**Next occurrence:** the error screen will show Todoist's raw response (e.g. `{"error_tag":"AUTHZ_PERMISSION_DENIED",...}`) below "Todoist rejected your session." That tells us exactly why Todoist rejected the token.
+
+### Step 3 — if hypothesis 1 (SecureStore key loss)
 
 Options in order of invasiveness:
 
@@ -95,4 +115,7 @@ Options in order of invasiveness:
 |------|--------|---------|
 | 2026-05-21 | Removed token auto-clear on 401, added SecureStore read-back, added AppState listener (b28cbd8) | Deployed; needs new preview build |
 | 2026-05-21 | Added `tokenFoundInStorage` to authStore; error screen now shows "session lost" vs "session error" to distinguish hypotheses without needing logs | Needs new preview build to test |
-| — | Next error occurrence: read which message appears | Pending |
+| 2026-05-23 | Error occurred again — showed **"Todoist session error"** (not "disconnected"), confirming token was in SecureStore; Hypothesis 1 ruled out for this occurrence. Retry did nothing. Reconnect took user to Settings showing "Connected" (UX bug). Manual disconnect + reconnect fixed it. App still listed in Todoist → Preferences → Integrations, so token was not user-revoked. Root cause unknown — likely transient Todoist rejection. | Confirmed Hypothesis 2; UX bug identified |
+| 2026-05-23 | Fixed Reconnect button (`CardDeck.tsx`) to clear stale token before navigating to Settings; added 401 response body logging to `services/todoist.ts` | Deployed |
+| 2026-05-23 | Added on-screen display of Todoist 401 response body (`authErrorDetail` in deckStore, shown in CardDeck error screen) — replaces adb log approach | Needs new preview build |
+| — | Next error occurrence: read detail text shown on error screen | Pending |

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,10 +13,10 @@ import { EmptyState } from './EmptyState';
 
 export function CardDeck() {
   const router = useRouter();
-  const { todoistToken, tokenFoundInStorage } = useAuthStore();
+  const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -83,12 +83,21 @@ export function CardDeck() {
               ? 'Your session was lost. Reconnect to continue.'
               : 'Todoist rejected your session. This may be temporary.'}
           </Text>
+          {authErrorDetail && (
+            <Text style={styles.errorDetail}>{authErrorDetail}</Text>
+          )}
           {!tokenMissing && (
             <TouchableOpacity style={styles.retryButton} onPress={() => fetchCards(todoistToken)}>
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/settings')}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              if (!tokenMissing) setTodoistToken(null);
+              router.push('/settings');
+            }}
+          >
             <Text style={styles.retryText}>Reconnect Todoist</Text>
           </TouchableOpacity>
         </View>
@@ -200,6 +209,12 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  errorDetail: {
+    fontSize: 11,
+    color: '#444',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   retryButton: {
     marginTop: 8,

@@ -27,6 +27,7 @@ interface DeckState {
   totalCount: number;
   isLoading: boolean;
   error: ErrorKind;
+  authErrorDetail: string | null;
   pendingUndo: Card | null;
   markDone: (id: string) => void;
   commitPendingUndo: () => void;
@@ -54,6 +55,7 @@ export const useDeckStore = create<DeckState>((set) => ({
   totalCount: 0,
   isLoading: false,
   error: null,
+  authErrorDetail: null,
   pendingUndo: null,
 
   markDone: (id) =>
@@ -101,7 +103,7 @@ export const useDeckStore = create<DeckState>((set) => ({
     }),
 
   fetchCards: async (token) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, authErrorDetail: null });
     try {
       const todayStr = new Date().toLocaleDateString('en-CA');
       const settings = useSettingsStore.getState();
@@ -172,9 +174,9 @@ export const useDeckStore = create<DeckState>((set) => ({
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
       if (e instanceof TodoistAuthError) {
-        set({ isLoading: false, error: 'invalid_token' });
+        set({ isLoading: false, error: 'invalid_token', authErrorDetail: (e as Error).message || null });
       } else {
-        set({ isLoading: false, error: 'network' });
+        set({ isLoading: false, error: 'network', authErrorDetail: null });
       }
     }
   },

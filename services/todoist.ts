@@ -23,7 +23,11 @@ async function get<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 401) throw new TodoistAuthError('Invalid token');
+  if (res.status === 401) {
+    const body = await res.text().catch(() => '(unreadable)');
+    console.error('[todoist] 401 response body:', body);
+    throw new TodoistAuthError(body);
+  }
   if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
   return res.json();
 }
@@ -37,7 +41,11 @@ export async function fetchTasks(token: string): Promise<TodoistTask[]> {
   do {
     const url = `${BASE}/tasks?filter=${TASK_FILTER}&limit=200${cursor ? `&cursor=${cursor}` : ''}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 401) throw new TodoistAuthError('Invalid token');
+    if (res.status === 401) {
+      const body = await res.text().catch(() => '(unreadable)');
+      console.error('[todoist] 401 response body:', body);
+      throw new TodoistAuthError(body);
+    }
     if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
     const data = await res.json() as Record<string, unknown>;
     const page = (data.results ?? data.tasks ?? data.items ?? data.data ?? []) as TodoistTask[];
@@ -59,7 +67,7 @@ export async function closeTask(taskId: string, token: string): Promise<void> {
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     console.error(`[todoist] closeTask ${res.status}:`, body);
-    if (res.status === 401) throw new TodoistAuthError('Invalid token');
+    if (res.status === 401) throw new TodoistAuthError(body);
     throw new Error(`Todoist API error: ${res.status}`);
   }
 }
