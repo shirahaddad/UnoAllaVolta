@@ -10,7 +10,7 @@ export default function AuthCallback() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { setTokens } = useGoogleAuthStore();
-  const { setTodoistToken } = useAuthStore();
+  const { setTodoistToken, setTodoistRefreshToken } = useAuthStore();
   const [status, setStatus] = useState('Connecting...');
 
   useEffect(() => {
@@ -39,6 +39,9 @@ export default function AuthCallback() {
           console.log('[auth] todoist token exchange response:', JSON.stringify(data));
           if (data.access_token) {
             await setTodoistToken(data.access_token);
+            if (data.refresh_token) {
+              await setTodoistRefreshToken(data.refresh_token);
+            }
             setStatus('Todoist connected!');
           }
         } else {

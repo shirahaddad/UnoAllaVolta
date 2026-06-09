@@ -1,10 +1,13 @@
 import { create } from 'zustand';
-import { fetchTasks, fetchProjects, closeTask, TodoistAuthError, TodoistProject } from '@/services/todoist';
+import * as SecureStore from 'expo-secure-store';
+import { fetchTasks, fetchProjects, closeTask, refreshTodoistToken, TodoistAuthError, TodoistProject } from '@/services/todoist';
 import { fetchTodayEvents, fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
 import { useGoogleAuthStore } from '@/store/googleAuthStore';
 import { buildDeckCards } from '@/utils/cardBuilder';
 import { useSettingsStore } from '@/store/settingsStore';
+
+const KEY_DECK = 'cached_deck_v1';
 
 export type CardType = 'calendar' | 'task';
 
@@ -28,12 +31,14 @@ interface DeckState {
   isLoading: boolean;
   error: ErrorKind;
   authErrorDetail: string | null;
+  todoistDisconnected: boolean;
   pendingUndo: Card | null;
+  loadCachedCards: () => Promise<void>;
   markDone: (id: string) => void;
   commitPendingUndo: () => void;
   cancelPendingUndo: () => void;
   moveLater: (id: string) => void;
-  fetchCards: (token?: string | null) => Promise<void>;
+  fetchCards: (token?: string | null, retryCount?: number) => Promise<void>;
 }
 
 function _commit(card: Card) {
@@ -56,7 +61,19 @@ export const useDeckStore = create<DeckState>((set) => ({
   isLoading: false,
   error: null,
   authErrorDetail: null,
+  todoistDisconnected: false,
   pendingUndo: null,
+
+  loadCachedCards: async () => {
+    try {
+      const raw = await SecureStore.getItemAsync(KEY_DECK);
+      if (!raw) return;
+      const { cards, laterCount } = JSON.parse(raw) as { cards: Card[]; laterCount: number };
+      if (Array.isArray(cards) && cards.length > 0) {
+        set({ queue: cards, laterCount, totalCount: cards.length });
+      }
+    } catch {}
+  },
 
   markDone: (id) =>
     set((state) => {
@@ -102,26 +119,51 @@ export const useDeckStore = create<DeckState>((set) => ({
       return { queue: newQueue, laterCount: newLaterCount };
     }),
 
-  fetchCards: async (token) => {
+  fetchCards: async (token, retryCount = 0) => {
     set({ isLoading: true, error: null, authErrorDetail: null });
     try {
       const todayStr = new Date().toLocaleDateString('en-CA');
       const settings = useSettingsStore.getState();
 
-      const [todoistResult, googleToken] = await Promise.all([
-        token
-          ? Promise.all([fetchTasks(token), fetchProjects(token)])
-          : Promise.resolve([[], []] as const),
-        useGoogleAuthStore.getState().getValidToken(),
-      ]);
+      // Fetch Todoist independently so a 401 does not abort the calendar fetch.
+      let allTasks: Awaited<ReturnType<typeof fetchTasks>> = [];
+      let projects: Awaited<ReturnType<typeof fetchProjects>> = [];
+      let todoistAuthFailed = false;
+      let todoistAuthDetail: string | null = null;
 
-      const [allTasks, projects] = todoistResult;
+      if (token) {
+        try {
+          [allTasks, projects] = await Promise.all([fetchTasks(token), fetchProjects(token)]);
+        } catch (e) {
+          if (e instanceof TodoistAuthError) {
+            if (e.errorCode === 477 && retryCount === 0) {
+              // Token expired — attempt refresh before giving up (per Todoist docs: do NOT retry same token).
+              const { todoistRefreshToken } = useAuthStore.getState();
+              if (todoistRefreshToken) {
+                const newToken = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
+                if (newToken) {
+                  await useAuthStore.getState().setTodoistToken(newToken);
+                  useDeckStore.getState().fetchCards(newToken, 1);
+                  return;
+                }
+              }
+            }
+            todoistAuthFailed = true;
+            todoistAuthDetail = (e as Error).message || null;
+            console.error('[deckStore] Todoist auth error:', e);
+          } else {
+            throw e;
+          }
+        }
+      }
 
       const excludedProjects = new Set(settings.excludedProjectIds);
       const tasks = allTasks.filter(
         (t) => !t.checked && !excludedProjects.has(t.project_id) && (t.due === null || t.due.date <= todayStr)
       );
 
+      // Fetch calendar regardless of Todoist outcome.
+      const googleToken = await useGoogleAuthStore.getState().getValidToken();
       let events: Awaited<ReturnType<typeof fetchTodayEvents>> = [];
       let calendars: GoogleCalendar[] = [];
       if (googleToken) {
@@ -170,14 +212,28 @@ export const useDeckStore = create<DeckState>((set) => ({
         ordered = cards;
         laterCount = 0;
       }
-      set({ queue: ordered, projects, calendars, totalCount: ordered.length, doneCount: 0, laterCount, isLoading: false });
+
+      // When Todoist is disconnected but calendar cards exist: surface banner, not error screen.
+      // When Todoist is disconnected and nothing else loaded either: surface error screen.
+      const noCards = ordered.length === 0;
+      set({
+        queue: ordered,
+        projects,
+        calendars,
+        totalCount: ordered.length,
+        doneCount: 0,
+        laterCount,
+        isLoading: false,
+        error: todoistAuthFailed && noCards ? 'invalid_token' : null,
+        todoistDisconnected: todoistAuthFailed,
+        authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
+      });
+      if (!todoistAuthFailed || !noCards) {
+        SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount })).catch(console.error);
+      }
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
-      if (e instanceof TodoistAuthError) {
-        set({ isLoading: false, error: 'invalid_token', authErrorDetail: (e as Error).message || null });
-      } else {
-        set({ isLoading: false, error: 'network', authErrorDetail: null });
-      }
+      set({ isLoading: false, error: 'network', authErrorDetail: null });
     }
   },
 }));

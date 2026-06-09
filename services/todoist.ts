@@ -17,7 +17,30 @@ export interface TodoistProject {
   is_frozen: boolean;
 }
 
-export class TodoistAuthError extends Error {}
+export class TodoistAuthError extends Error {
+  constructor(
+    message: string,
+    public errorCode?: number,
+    public retryAfter?: number,
+    public errorTag?: string,
+    public requestId?: string,
+  ) {
+    super(message);
+  }
+}
+
+function parse401(body: string): { errorCode?: number; retryAfter?: number; errorTag?: string } {
+  try {
+    const parsed = JSON.parse(body);
+    return {
+      errorCode: parsed.error_code,
+      retryAfter: parsed.error_extra?.retry_after,
+      errorTag: parsed.error_tag,
+    };
+  } catch {
+    return {};
+  }
+}
 
 async function get<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -25,8 +48,10 @@ async function get<T>(path: string, token: string): Promise<T> {
   });
   if (res.status === 401) {
     const body = await res.text().catch(() => '(unreadable)');
-    console.error('[todoist] 401 response body:', body);
-    throw new TodoistAuthError(body);
+    const requestId = res.headers.get('x-request-id') ?? undefined;
+    const { errorCode, retryAfter, errorTag } = parse401(body);
+    console.error('[todoist] 401:', { endpoint: path, errorCode, errorTag, requestId, body });
+    throw new TodoistAuthError(body, errorCode, retryAfter, errorTag, requestId);
   }
   if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
   return res.json();
@@ -43,8 +68,10 @@ export async function fetchTasks(token: string): Promise<TodoistTask[]> {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (res.status === 401) {
       const body = await res.text().catch(() => '(unreadable)');
-      console.error('[todoist] 401 response body:', body);
-      throw new TodoistAuthError(body);
+      const requestId = res.headers.get('x-request-id') ?? undefined;
+      const { errorCode, retryAfter, errorTag } = parse401(body);
+      console.error('[todoist] 401:', { endpoint: url, errorCode, errorTag, requestId, body });
+      throw new TodoistAuthError(body, errorCode, retryAfter, errorTag, requestId);
     }
     if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
     const data = await res.json() as Record<string, unknown>;
@@ -67,8 +94,36 @@ export async function closeTask(taskId: string, token: string): Promise<void> {
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     console.error(`[todoist] closeTask ${res.status}:`, body);
-    if (res.status === 401) throw new TodoistAuthError(body);
+    if (res.status === 401) {
+      const { errorCode, retryAfter } = parse401(body);
+      throw new TodoistAuthError(body, errorCode, retryAfter);
+    }
     throw new Error(`Todoist API error: ${res.status}`);
+  }
+}
+
+export async function refreshTodoistToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch('https://todoist.com/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    });
+    const data = await res.json();
+    console.log('[todoist] token refresh response:', res.status, data.access_token ? 'got token' : 'no token');
+    return (data.access_token as string) ?? null;
+  } catch (e) {
+    console.error('[todoist] token refresh failed:', e);
+    return null;
   }
 }
 
