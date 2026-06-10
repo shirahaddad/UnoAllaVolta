@@ -1,8 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
   Linking,
+  Platform,
   PanResponder,
   StyleSheet,
   Text,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { Card } from '@/store/deckStore';
 
-const CARD_WIDTH = Dimensions.get('window').width - 48;
+const CARD_WIDTH = Math.min(Dimensions.get('window').width, 430) - 48;
 
 const URL_REGEX = /https?:\/\/\S+/g;
 
@@ -49,6 +50,39 @@ interface FlipCardProps {
 
 export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const isPanning = useRef(false);
+  const currentDx = useRef(0);
+  const startX = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const onDoneRef = useRef(onDone);
+  const onLaterRef = useRef(onLater);
+  onDoneRef.current = onDone;
+  onLaterRef.current = onLater;
+
+  function handleRelease(dx: number) {
+    isPanning.current = false;
+    setIsDragging(false);
+    if (dx > SWIPE_THRESHOLD) {
+      Animated.timing(translateX, { toValue: 500, duration: 250, useNativeDriver: true })
+        .start(() => onDoneRef.current());
+    } else if (dx < -SWIPE_THRESHOLD) {
+      Animated.timing(translateX, { toValue: -500, duration: 250, useNativeDriver: true })
+        .start(() => onLaterRef.current());
+    } else {
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    }
+  }
+
+  // Last-resort fallback: catches mouseup that fires outside the card but still in the window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onWindowMouseUp = () => {
+      if (isPanning.current) handleRelease(currentDx.current);
+    };
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => window.removeEventListener('mouseup', onWindowMouseUp);
+  }, []);
+
   const rotate = translateX.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: ['-8deg', '0deg', '8deg'],
@@ -64,31 +98,51 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
     extrapolate: 'clamp',
   });
 
+  const activePointerId = useRef(-1);
+
+  // Web: pointer capture ensures pointerup fires even when mouse leaves the browser window.
+  // Capture is deferred to the first move >5px so that clicks on child elements (links)
+  // still receive their pointerup and generate a click event normally.
+  const webPointerHandlers = Platform.OS === 'web' ? {
+    onPointerDown: (e: any) => {
+      activePointerId.current = e.pointerId;
+      startX.current = e.clientX;
+      currentDx.current = 0;
+    },
+    onPointerMove: (e: any) => {
+      if (e.pointerId !== activePointerId.current) return;
+      const dx = e.clientX - startX.current;
+      if (!isPanning.current && Math.abs(dx) > 5) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        isPanning.current = true;
+        setIsDragging(true);
+      }
+      if (!isPanning.current) return;
+      currentDx.current = dx;
+      translateX.setValue(dx);
+    },
+    onPointerUp: (e: any) => {
+      if (e.pointerId !== activePointerId.current) return;
+      activePointerId.current = -1;
+      if (isPanning.current) handleRelease(currentDx.current);
+    },
+    onPointerCancel: (e: any) => {
+      if (e.pointerId !== activePointerId.current) return;
+      activePointerId.current = -1;
+      if (isPanning.current) handleRelease(0);
+    },
+  } : {};
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, { dx }) => Math.abs(dx) > 5,
       onPanResponderMove: (_, { dx }) => {
+        isPanning.current = true;
+        currentDx.current = dx;
         translateX.setValue(dx);
       },
       onPanResponderRelease: (_, { dx }) => {
-        if (dx > SWIPE_THRESHOLD) {
-          Animated.timing(translateX, {
-            toValue: 500,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(onDone);
-        } else if (dx < -SWIPE_THRESHOLD) {
-          Animated.timing(translateX, {
-            toValue: -500,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(onLater);
-        } else {
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
+        handleRelease(dx);
       },
     })
   ).current;
@@ -98,8 +152,12 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
   return (
     <View style={styles.wrapper}>
       <Animated.View
-        style={[styles.card, { transform: [{ translateX }, { rotate }] }]}
-        {...panResponder.panHandlers}
+        style={[
+          styles.card,
+          { transform: [{ translateX }, { rotate }] },
+          Platform.OS === 'web' && ({ cursor: isDragging ? 'grabbing' : 'grab' } as any),
+        ]}
+        {...(Platform.OS === 'web' ? webPointerHandlers : panResponder.panHandlers)}
       >
         <Animated.View style={[styles.doneLabel, { opacity: doneOpacity }]}>
           <Text style={styles.doneLabelText}>DONE</Text>

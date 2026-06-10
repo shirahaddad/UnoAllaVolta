@@ -3,8 +3,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
-
-const REDIRECT_URI = 'https://shirahaddad.github.io/UnoAllaVolta/auth.html';
+import { getOAuthRedirectUri } from '@/utils/redirectUri';
 
 export default function AuthCallback() {
   const params = useLocalSearchParams();
@@ -53,7 +52,7 @@ export default function AuthCallback() {
               code,
               client_id: GOOGLE_CLIENT_ID,
               client_secret: GOOGLE_CLIENT_SECRET,
-              redirect_uri: REDIRECT_URI,
+              redirect_uri: getOAuthRedirectUri(),
               grant_type: 'authorization_code',
             }).toString(),
           });

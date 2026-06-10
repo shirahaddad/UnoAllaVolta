@@ -8,7 +8,12 @@
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (code) {
-    window.location.href = 'unoallavolta://auth?' + params.toString();
+    if (window.opener) {
+      window.opener.postMessage({ type: 'oauth-callback', url: 'unoallavolta://auth?' + params.toString() }, '*');
+      window.close();
+    } else {
+      window.location.href = 'unoallavolta://auth?' + params.toString();
+    }
   } else {
     document.body.textContent = params.get('error') || 'Something went wrong.';
   }

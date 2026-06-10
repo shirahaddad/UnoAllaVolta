@@ -14,25 +14,69 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore, TODOIST_CLIENT_ID } from '@/store/authStore';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID } from '@/store/googleAuthStore';
+import { getOAuthRedirectUri } from '@/utils/redirectUri';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
 import { fetchProjects, TodoistProject } from '@/services/todoist';
 
-const REDIRECT_URI = 'https://shirahaddad.github.io/UnoAllaVolta/auth.html';
+function openWebOAuth(authUrl: string): Promise<{ code: string; state: string } | null> {
+  return new Promise((resolve) => {
+    localStorage.removeItem('oauth_result');
+    const popup = (window as Window).open(authUrl, 'oauth', 'width=600,height=700,left=200,top=100');
+
+    let done = false;
+    function finish(result: { code: string; state: string } | null) {
+      if (done) return;
+      done = true;
+      clearInterval(closedTimer);
+      window.removeEventListener('storage', storageHandler);
+      localStorage.removeItem('oauth_result');
+      resolve(result);
+    }
+
+    function readResult(): { code: string; state: string } | null {
+      try {
+        const raw = localStorage.getItem('oauth_result');
+        if (!raw) return null;
+        const { code, state } = JSON.parse(raw);
+        return code && state ? { code, state } : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key === 'oauth_result') finish(readResult());
+    };
+
+    // Fallback: detect popup closed without storage event firing first
+    const closedTimer = setInterval(() => {
+      if (popup?.closed) finish(readResult());
+    }, 300);
+
+    window.addEventListener('storage', storageHandler);
+  });
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { todoistToken, setTodoistToken } = useAuthStore();
   const handleTodoistConnect = async () => {
+    const redirectUri = getOAuthRedirectUri();
     const authUrl =
       'https://todoist.com/oauth/authorize?' +
       new URLSearchParams({
         client_id: TODOIST_CLIENT_ID,
         scope: 'data:read_write',
         state: 'todoist',
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
       }).toString();
+    if (Platform.OS === 'web') {
+      const result = await openWebOAuth(authUrl);
+      if (result) router.push({ pathname: '/auth', params: result });
+      return;
+    }
     const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
     console.log('[settings] todoist auth result:', JSON.stringify(result));
     if (result.type === 'success') {
@@ -48,29 +92,50 @@ export default function SettingsScreen() {
   const handleTodoistDisconnect = async () => {
     await setTodoistToken(null);
   };
-  const { calendars: deckCalendars } = useDeckStore();
+  const { calendars: deckCalendars, todoistDisconnected, authErrorDetail } = useDeckStore();
   const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar, resetDismissedCalendarEvents } = useSettingsStore();
   const { email: googleEmail, accessToken: googleAccessToken, clearTokens, getValidToken } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
 
   const [reimportDone, setReimportDone] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const projects = await fetchProjects(todoistToken!);
+      setTestResult(`✓ OK — ${projects.length} project${projects.length === 1 ? '' : 's'}`);
+    } catch (e) {
+      setTestResult(`✗ ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setTesting(false);
+    }
+  };
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [calendarsExpanded, setCalendarsExpanded] = useState(false);
   const [projectList, setProjectList] = useState<TodoistProject[]>([]);
   const [calendarList, setCalendarList] = useState<GoogleCalendar[]>(deckCalendars);
 
   const handleGoogleConnect = async () => {
+    const redirectUri = getOAuthRedirectUri();
     const authUrl =
       'https://accounts.google.com/o/oauth2/v2/auth?' +
       new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
         response_type: 'code',
         scope: 'https://www.googleapis.com/auth/calendar.readonly openid email',
         access_type: 'offline',
         prompt: 'consent',
         state: 'google',
       }).toString();
+    if (Platform.OS === 'web') {
+      const result = await openWebOAuth(authUrl);
+      if (result) router.push({ pathname: '/auth', params: result });
+      return;
+    }
     const result = await WebBrowser.openAuthSessionAsync(authUrl, 'unoallavolta://auth');
     console.log('[settings] google auth result:', JSON.stringify(result));
     if (result.type === 'success') {
@@ -135,9 +200,24 @@ export default function SettingsScreen() {
             {todoistToken ? (
               <View style={styles.box}>
                 <View style={styles.connectedRow}>
-                  <View style={styles.dot} />
-                  <Text style={styles.connectedText}>Connected</Text>
+                  <View style={[styles.dot, todoistDisconnected && styles.errorDot]} />
+                  <Text style={[styles.connectedText, todoistDisconnected && styles.errorText]}>
+                    {todoistDisconnected ? 'Connection error' : 'Connected'}
+                  </Text>
                 </View>
+                {todoistDisconnected && authErrorDetail && (
+                  <Text style={styles.errorDetail} numberOfLines={3}>{authErrorDetail}</Text>
+                )}
+                <TouchableOpacity
+                  style={styles.disconnectButton}
+                  onPress={handleTestConnection}
+                  disabled={testing}
+                >
+                  <Text style={styles.disconnectText}>{testing ? 'Testing…' : 'Test connection'}</Text>
+                </TouchableOpacity>
+                {testResult !== null && (
+                  <Text style={styles.testResultText}>{testResult}</Text>
+                )}
                 <TouchableOpacity style={styles.disconnectButton} onPress={handleTodoistDisconnect}>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
@@ -260,6 +340,9 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -318,6 +401,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#F0EFEB',
+  },
+  errorDot: {
+    backgroundColor: '#E05C5C',
+  },
+  errorText: {
+    color: '#E05C5C',
+  },
+  errorDetail: {
+    fontSize: 11,
+    color: '#555',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  testResultText: {
+    fontSize: 13,
+    color: '#8A8A8A',
   },
   disconnectButton: {
     alignSelf: 'flex-start',

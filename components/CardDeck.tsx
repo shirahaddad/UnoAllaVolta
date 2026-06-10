@@ -16,7 +16,7 @@ export function CardDeck() {
   const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, authErrorDetail, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -63,14 +63,14 @@ export function CardDeck() {
         </View>
       );
     }
-    if (isLoading && !isRefreshing) {
+    if (isLoading && !isRefreshing && queue.length === 0) {
       return (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#4A9BAF" />
         </View>
       );
     }
-    if (error === 'invalid_token') {
+    if (error === 'invalid_token' && queue.length === 0) {
       const tokenMissing = tokenFoundInStorage === false;
       return (
         <View style={styles.centered}>
@@ -103,7 +103,7 @@ export function CardDeck() {
         </View>
       );
     }
-    if (error === 'network') {
+    if (error === 'network' && queue.length === 0) {
       return (
         <View style={styles.centered}>
           <Ionicons name="cloud-offline-outline" size={40} color="#8A8A8A" />
@@ -145,6 +145,17 @@ export function CardDeck() {
         </TouchableOpacity>
       </View>
       {((todoistToken || googleConnected) && !error && !isLoading) && <ProgressBar />}
+      {todoistDisconnected && queue.length > 0 && (
+        <View style={styles.todoist_banner}>
+          <Text style={styles.bannerText}>Todoist disconnected</Text>
+          <TouchableOpacity
+            onPress={() => { setTodoistToken(null); router.push('/settings'); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.bannerAction}>Reconnect →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -159,14 +170,12 @@ export function CardDeck() {
       >
         {renderBody()}
       </ScrollView>
-      {pendingUndo && (
-        <View style={styles.undoToast}>
-          <Text style={styles.undoLabel}>Marked as done</Text>
-          <TouchableOpacity onPress={cancelPendingUndo} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.undoButton}>Undo</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={[styles.undoToast, !pendingUndo && styles.undoToastHidden]}>
+        <Text style={styles.undoLabel}>Marked as done</Text>
+        <TouchableOpacity onPress={cancelPendingUndo} disabled={!pendingUndo} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.undoButton}>Undo</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -175,6 +184,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F0F0F',
+    maxWidth: 430,
+    width: '100%',
+    alignSelf: 'center',
   },
   topBar: {
     flexDirection: 'row',
@@ -228,6 +240,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#4A9BAF',
     fontWeight: '500',
+  },
+  todoist_banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  bannerText: {
+    fontSize: 13,
+    color: '#8A8A8A',
+  },
+  bannerAction: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#4A9BAF',
+  },
+  undoToastHidden: {
+    opacity: 0,
   },
   undoToast: {
     flexDirection: 'row',

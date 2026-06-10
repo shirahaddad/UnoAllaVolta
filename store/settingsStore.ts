@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/storage';
 import { GoogleCalendar } from '@/services/googleCalendar';
 
 const KEY_PROJECTS = 'excluded_project_ids';

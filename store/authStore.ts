@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/storage';
 
 export const TODOIST_CLIENT_ID = process.env.EXPO_PUBLIC_TODOIST_CLIENT_ID!;
 export const TODOIST_CLIENT_SECRET = process.env.EXPO_PUBLIC_TODOIST_CLIENT_SECRET!;

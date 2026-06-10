@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/storage';
 import { fetchTasks, fetchProjects, closeTask, refreshTodoistToken, TodoistAuthError, TodoistProject } from '@/services/todoist';
 import { fetchTodayEvents, fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';

@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/storage';
 import { create } from 'zustand';
 
 const KEY_ACCESS = 'google_access_token';

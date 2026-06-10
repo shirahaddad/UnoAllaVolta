@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useGoogleAuthStore } from '@/store/googleAuthStore';
+import { useDeckStore } from '@/store/deckStore';
 
 const AppTheme = {
   ...DarkTheme,
@@ -25,10 +26,11 @@ export default function RootLayout() {
   const loadAuth = useAuthStore((s) => s.loadFromStorage);
   const loadSettings = useSettingsStore((s) => s.loadFromStorage);
   const loadGoogleAuth = useGoogleAuthStore((s) => s.loadFromStorage);
+  const loadDeckCache = useDeckStore((s) => s.loadCachedCards);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadAuth(), loadSettings(), loadGoogleAuth()])
+    Promise.all([loadAuth(), loadSettings(), loadGoogleAuth(), loadDeckCache()])
       .then(() => setReady(true));
   }, []);
 
@@ -52,6 +54,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
+        <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
