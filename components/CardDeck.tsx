@@ -147,13 +147,25 @@ export function CardDeck() {
         ) : (
           <View style={styles.topBarSpacer} />
         )}
-        <TouchableOpacity
-          style={styles.gearButton}
-          onPress={() => router.push('/settings')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
-        </TouchableOpacity>
+        {Platform.OS === 'web' ? (
+          <span title="Settings" style={{ display: 'contents' } as any}>
+            <TouchableOpacity
+              style={styles.gearButton}
+              onPress={() => router.push('/settings')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
+            </TouchableOpacity>
+          </span>
+        ) : (
+          <TouchableOpacity
+            style={styles.gearButton}
+            onPress={() => router.push('/settings')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
+          </TouchableOpacity>
+        )}
       </View>
       {((todoistToken || googleConnected) && !error && !isLoading) && <ProgressBar />}
       {todoistDisconnected && queue.length > 0 && (

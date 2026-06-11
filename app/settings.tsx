@@ -189,17 +189,7 @@ export default function SettingsScreen() {
             <Ionicons name="chevron-back" size={24} color="#F0EFEB" />
           </TouchableOpacity>
           <Text style={styles.title}>Settings</Text>
-          {Platform.OS === 'web' ? (
-            <a
-              href="https://www.shirahaddad.com"
-              title="https://www.shirahaddad.com"
-              style={{ color: '#8A8A8A', fontSize: 12, fontFamily: 'Poppins, sans-serif', textDecoration: 'none', minWidth: 40, textAlign: 'right' }}
-            >
-              Home
-            </a>
-          ) : (
-            <View style={styles.backButton} />
-          )}
+          <View style={styles.backButton} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
