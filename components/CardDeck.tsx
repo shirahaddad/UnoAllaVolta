@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -136,6 +136,16 @@ export function CardDeck() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
+        {Platform.OS === 'web' ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://www.shirahaddad.com')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.homeLink}>← shirahaddad.com</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.topBarSpacer} />
+        )}
         <TouchableOpacity
           style={styles.gearButton}
           onPress={() => router.push('/settings')}
@@ -190,9 +200,18 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  homeLink: {
+    fontSize: 12,
+    color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
+  },
+  topBarSpacer: {
+    width: 40,
   },
   gearButton: {
     padding: 6,

@@ -46,6 +46,20 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVisibility = () => {
+      if (document.hidden) return;
+      const { todoistToken } = useAuthStore.getState();
+      const { accessToken } = useGoogleAuthStore.getState();
+      if (todoistToken || accessToken) {
+        useDeckStore.getState().fetchCards(todoistToken);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   if (!ready) return null;
 
   return (
