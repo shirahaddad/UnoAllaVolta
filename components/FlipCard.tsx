@@ -155,7 +155,7 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
         style={[
           styles.card,
           { transform: [{ translateX }, { rotate }] },
-          Platform.OS === 'web' && ({ cursor: isDragging ? 'grabbing' : 'grab' } as any),
+          Platform.OS === 'web' && ({ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' } as any),
         ]}
         {...(Platform.OS === 'web' ? webPointerHandlers : panResponder.panHandlers)}
       >
@@ -230,6 +230,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   chipTextCalendar: {
     color: '#4A9BAF',
@@ -241,19 +242,23 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#F0EFEB',
+    fontFamily: Platform.select({ web: "'DM Serif Display', serif" }),
   },
   subtitle: {
     fontSize: 15,
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   description: {
     fontSize: 14,
     color: '#6A6A6A',
     lineHeight: 20,
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   link: {
     color: '#4A9BAF',
     textDecorationLine: 'underline',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   doneLabel: {
     position: 'absolute',
@@ -271,6 +276,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#4A9BAF',
     letterSpacing: 1,
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   laterLabel: {
     position: 'absolute',
@@ -288,6 +294,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#8A8A8A',
     letterSpacing: 1,
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   actions: {
     flexDirection: 'row',
@@ -312,10 +319,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   doneButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#0F0F0F',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
 });

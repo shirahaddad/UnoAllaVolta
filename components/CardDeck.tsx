@@ -215,12 +215,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F0EFEB',
     textAlign: 'center',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   emptyHint: {
     fontSize: 14,
     color: '#8A8A8A',
     textAlign: 'center',
     lineHeight: 20,
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   errorDetail: {
     fontSize: 11,
@@ -240,6 +242,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#4A9BAF',
     fontWeight: '500',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   todoist_banner: {
     flexDirection: 'row',
@@ -257,11 +260,13 @@ const styles = StyleSheet.create({
   bannerText: {
     fontSize: 13,
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   bannerAction: {
     fontSize: 13,
     fontWeight: '500',
     color: '#4A9BAF',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   undoToastHidden: {
     opacity: 0,
@@ -283,10 +288,12 @@ const styles = StyleSheet.create({
   undoLabel: {
     fontSize: 14,
     color: '#F0EFEB',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   undoButton: {
     fontSize: 14,
     fontWeight: '600',
     color: '#4A9BAF',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
 });

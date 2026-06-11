@@ -361,6 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#F0EFEB',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   scrollContent: {
     paddingBottom: 40,
@@ -377,6 +378,7 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   box: {
     backgroundColor: '#1A1A1A',
@@ -401,6 +403,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#F0EFEB',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   errorDot: {
     backgroundColor: '#E05C5C',
@@ -416,6 +419,7 @@ const styles = StyleSheet.create({
   testResultText: {
     fontSize: 13,
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   disconnectButton: {
     alignSelf: 'flex-start',
@@ -429,6 +433,7 @@ const styles = StyleSheet.create({
   disconnectText: {
     fontSize: 14,
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   saveButton: {
     backgroundColor: '#4A9BAF',
@@ -440,6 +445,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#0F0F0F',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   collapsibleHeader: {
     flexDirection: 'row',
@@ -466,9 +472,11 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 13,
     color: '#8A8A8A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   chipTextActive: {
     color: '#0F0F0F',
     fontWeight: '600',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
 });
