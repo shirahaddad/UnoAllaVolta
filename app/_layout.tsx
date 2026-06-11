@@ -30,6 +30,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (typeof document !== 'undefined') document.title = 'UnoAllaVolta';
     Promise.all([loadAuth(), loadSettings(), loadGoogleAuth(), loadDeckCache()])
       .then(() => setReady(true));
   }, []);

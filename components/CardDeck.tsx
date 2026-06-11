@@ -140,6 +140,7 @@ export function CardDeck() {
           <TouchableOpacity
             onPress={() => Linking.openURL('https://www.shirahaddad.com')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            {...({ title: 'https://www.shirahaddad.com' } as any)}
           >
             <Text style={styles.homeLink}>Home</Text>
           </TouchableOpacity>
