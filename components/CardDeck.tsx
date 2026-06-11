@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -137,13 +137,13 @@ export function CardDeck() {
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         {Platform.OS === 'web' ? (
-          <TouchableOpacity
-            onPress={() => Linking.openURL('https://www.shirahaddad.com')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            {...({ title: 'https://www.shirahaddad.com' } as any)}
+          <a
+            href="https://www.shirahaddad.com"
+            title="https://www.shirahaddad.com"
+            style={{ color: '#8A8A8A', fontSize: 12, fontFamily: 'Poppins, sans-serif', textDecoration: 'none', padding: '6px 0' }}
           >
-            <Text style={styles.homeLink}>Home</Text>
-          </TouchableOpacity>
+            Home
+          </a>
         ) : (
           <View style={styles.topBarSpacer} />
         )}
