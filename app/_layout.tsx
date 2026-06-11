@@ -65,7 +65,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={AppTheme}>
       <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'UnoAllaVolta' }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
