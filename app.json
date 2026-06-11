@@ -28,7 +28,6 @@
     },
     "web": {
       "output": "static",
-      "baseUrl": "/unoallavolta",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
