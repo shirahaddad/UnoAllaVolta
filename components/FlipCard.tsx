@@ -75,7 +75,7 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
 
   // Last-resort fallback: catches mouseup that fires outside the card but still in the window
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (Platform.OS !== 'web') return;
     const onWindowMouseUp = () => {
       if (isPanning.current) handleRelease(currentDx.current);
     };
