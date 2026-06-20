@@ -44,3 +44,4 @@ app-example
 
 # Claude Code local memory
 .claude/
+.vercel

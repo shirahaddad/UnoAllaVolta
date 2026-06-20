@@ -70,7 +70,9 @@ export const useDeckStore = create<DeckState>((set) => ({
     try {
       const raw = await SecureStore.getItemAsync(KEY_DECK);
       if (!raw) return;
-      const { cards, laterCount } = JSON.parse(raw) as { cards: Card[]; laterCount: number };
+      const { cards, laterCount, date } = JSON.parse(raw) as { cards: Card[]; laterCount: number; date?: string };
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      if (date !== todayStr) return;
       if (Array.isArray(cards) && cards.length > 0) {
         set({ queue: cards, laterCount, totalCount: cards.length });
       }
@@ -247,7 +249,7 @@ export const useDeckStore = create<DeckState>((set) => ({
         authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
       });
       if (!todoistAuthFailed || !noCards) {
-        SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount })).catch(console.error);
+        SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount, date: todayStr })).catch(console.error);
       }
     } catch (e) {
       console.error('[deckStore] fetchCards error:', e);
