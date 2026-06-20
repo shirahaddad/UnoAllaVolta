@@ -67,7 +67,7 @@ export function FlipCard({ card, onDone, onLater, onTomorrow, onOpen }: FlipCard
     setIsDragging(false);
     if (dx > SWIPE_THRESHOLD) {
       Animated.timing(translateX, { toValue: 500, duration: 250, useNativeDriver: true })
-        .start(() => onDoneRef.current());
+        .start(() => Platform.OS === 'web' ? onLaterRef.current() : onDoneRef.current());
     } else if (dx < -SWIPE_THRESHOLD) {
       Animated.timing(translateX, { toValue: -500, duration: 250, useNativeDriver: true })
         .start(() => onLaterRef.current());
@@ -162,8 +162,10 @@ export function FlipCard({ card, onDone, onLater, onTomorrow, onOpen }: FlipCard
         ]}
         {...(Platform.OS === 'web' ? webPointerHandlers : panResponder.panHandlers)}
       >
-        <Animated.View style={[styles.doneLabel, { opacity: doneOpacity }]}>
-          <Text style={styles.doneLabelText}>DONE</Text>
+        <Animated.View style={[styles.doneLabel, Platform.OS === 'web' && styles.doneLabelWeb, { opacity: doneOpacity }]}>
+          <Text style={Platform.OS === 'web' ? styles.laterLabelText : styles.doneLabelText}>
+            {Platform.OS === 'web' ? 'LATER' : 'DONE'}
+          </Text>
         </Animated.View>
         <Animated.View style={[styles.laterLabel, { opacity: laterOpacity }]}>
           <Text style={styles.laterLabelText}>LATER</Text>
@@ -294,6 +296,9 @@ const styles = StyleSheet.create({
     color: '#4A9BAF',
     letterSpacing: 1,
     fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
+  },
+  doneLabelWeb: {
+    borderColor: '#8A8A8A',
   },
   laterLabel: {
     position: 'absolute',
