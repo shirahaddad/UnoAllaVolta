@@ -189,7 +189,7 @@ export function CardDeck() {
           )}
         </View>
       </View>
-      {((todoistToken || googleConnected) && !error && queue.length > 0) && <ProgressBar />}
+      {((todoistToken || googleConnected) && queue.length > 0) && <ProgressBar />}
       {todoistDisconnected && queue.length > 0 && (
         <View style={styles.todoist_banner}>
           <Text style={styles.bannerText}>Todoist disconnected</Text>
