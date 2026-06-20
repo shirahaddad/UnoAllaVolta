@@ -136,7 +136,7 @@ export const useDeckStore = create<DeckState>((set) => ({
       const newQueue = state.queue.filter((c) => c.id !== id);
       const newLaterCount = state.laterCount >= newQueue.length ? 0 : state.laterCount;
       useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
-      return { queue: newQueue, laterCount: newLaterCount };
+      return { queue: newQueue, laterCount: newLaterCount, doneCount: state.doneCount + 1 };
     }),
 
   fetchCards: async (token, retryCount = 0) => {
