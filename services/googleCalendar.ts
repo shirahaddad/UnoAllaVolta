@@ -13,6 +13,7 @@ export interface GoogleEvent {
   end: { dateTime?: string; date?: string };
   calendarId: string;
   calendarName: string;
+  htmlLink?: string;
 }
 
 async function googleGet<T>(path: string, token: string): Promise<T> {
@@ -57,6 +58,7 @@ export async function fetchTodayEvents(
         end: e.end,
         calendarId: cal.id,
         calendarName: cal.summary,
+        htmlLink: e.htmlLink as string | undefined,
       })) as GoogleEvent[];
     })
   );

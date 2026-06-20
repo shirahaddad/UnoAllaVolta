@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/store/deckStore';
 
 const CARD_WIDTH = Math.min(Dimensions.get('window').width, 430) - 48;
@@ -46,9 +47,11 @@ interface FlipCardProps {
   card: Card;
   onDone: () => void;
   onLater: () => void;
+  onTomorrow?: () => void;
+  onOpen?: () => void;
 }
 
-export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
+export function FlipCard({ card, onDone, onLater, onTomorrow, onOpen }: FlipCardProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isPanning = useRef(false);
   const currentDx = useRef(0);
@@ -171,11 +174,25 @@ export function FlipCard({ card, onDone, onLater }: FlipCardProps) {
             {card.type}
           </Text>
         </View>
+        {onOpen && (
+          <TouchableOpacity
+            style={styles.openButton}
+            onPress={onOpen}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="open-outline" size={16} color="#4A4A4A" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.title}>{card.title}</Text>
         <Text style={styles.subtitle}>{card.subtitle}</Text>
         {card.description ? <DescriptionText text={card.description} /> : null}
       </Animated.View>
 
+      {onTomorrow && (
+        <TouchableOpacity style={styles.tomorrowButton} onPress={onTomorrow}>
+          <Text style={styles.tomorrowButtonText}>Tomorrow</Text>
+        </TouchableOpacity>
+      )}
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.button, styles.laterButton]} onPress={onLater}>
           <Text style={styles.laterButtonText}>Later</Text>
@@ -314,6 +331,26 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     backgroundColor: '#4A9BAF',
+  },
+  openButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 4,
+  },
+  tomorrowButton: {
+    width: CARD_WIDTH,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    alignItems: 'center',
+  },
+  tomorrowButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#6A6A6A',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   laterButtonText: {
     fontSize: 16,

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from '@/utils/storage';
-import { fetchTasks, fetchProjects, closeTask, refreshTodoistToken, TodoistAuthError, TodoistProject } from '@/services/todoist';
+import { fetchTasks, fetchProjects, closeTask, rescheduleTask, refreshTodoistToken, TodoistAuthError, TodoistProject } from '@/services/todoist';
 import { fetchTodayEvents, fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
 import { useGoogleAuthStore } from '@/store/googleAuthStore';
@@ -17,6 +17,7 @@ export interface Card {
   title: string;
   subtitle: string;
   description?: string;
+  sourceUrl?: string;
 }
 
 type ErrorKind = 'invalid_token' | 'network' | null;
@@ -38,6 +39,7 @@ interface DeckState {
   commitPendingUndo: () => void;
   cancelPendingUndo: () => void;
   moveLater: (id: string) => void;
+  rescheduleTomorrow: (id: string) => void;
   fetchCards: (token?: string | null, retryCount?: number) => Promise<void>;
 }
 
@@ -115,6 +117,22 @@ export const useDeckStore = create<DeckState>((set) => ({
       if (!card) return state;
       const newQueue = [...state.queue.filter((c) => c.id !== id), card];
       const newLaterCount = state.laterCount + 1 >= state.queue.length ? 0 : state.laterCount + 1;
+      useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
+      return { queue: newQueue, laterCount: newLaterCount };
+    }),
+
+  rescheduleTomorrow: (id) =>
+    set((state) => {
+      if (!state.queue.find((c) => c.id === id)) return state;
+      const token = useAuthStore.getState().todoistToken;
+      if (token) {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        rescheduleTask(id, d.toLocaleDateString('en-CA'), token)
+          .catch((e) => console.error('[todoist] rescheduleTask failed:', e));
+      }
+      const newQueue = state.queue.filter((c) => c.id !== id);
+      const newLaterCount = state.laterCount >= newQueue.length ? 0 : state.laterCount;
       useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
       return { queue: newQueue, laterCount: newLaterCount };
     }),

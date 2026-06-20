@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,13 +10,14 @@ import { useGoogleAuthStore } from '@/store/googleAuthStore';
 import { FlipCard } from './FlipCard';
 import { ProgressBar } from './ProgressBar';
 import { EmptyState } from './EmptyState';
+import { AddTaskModal } from './AddTaskModal';
 
 export function CardDeck() {
   const router = useRouter();
   const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, fetchCards } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -26,6 +27,9 @@ export function CardDeck() {
 
   const current = queue[0];
   const [laterSeq, setLaterSeq] = useState(0);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [showRescheduledToast, setShowRescheduledToast] = useState(false);
+  const rescheduledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -127,6 +131,13 @@ export function CardDeck() {
             if (queue.length === 1) setLaterSeq(s => s + 1);
             moveLater(current.id);
           }}
+          onTomorrow={current.type === 'task' ? () => {
+            rescheduleTomorrow(current.id);
+            if (rescheduledTimerRef.current) clearTimeout(rescheduledTimerRef.current);
+            setShowRescheduledToast(true);
+            rescheduledTimerRef.current = setTimeout(() => setShowRescheduledToast(false), 2000);
+          } : undefined}
+          onOpen={current.sourceUrl ? () => Linking.openURL(current.sourceUrl!) : undefined}
         />
       );
     }
@@ -147,8 +158,27 @@ export function CardDeck() {
         ) : (
           <View style={styles.topBarSpacer} />
         )}
-        {Platform.OS === 'web' ? (
-          <span title="Settings" style={{ display: 'contents' } as any}>
+        <View style={styles.topBarRight}>
+          {todoistToken && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddTask(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="add-outline" size={24} color="#8A8A8A" />
+            </TouchableOpacity>
+          )}
+          {Platform.OS === 'web' ? (
+            <span title="Settings" style={{ display: 'contents' } as any}>
+              <TouchableOpacity
+                style={styles.gearButton}
+                onPress={() => router.push('/settings')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
+              </TouchableOpacity>
+            </span>
+          ) : (
             <TouchableOpacity
               style={styles.gearButton}
               onPress={() => router.push('/settings')}
@@ -156,16 +186,8 @@ export function CardDeck() {
             >
               <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
             </TouchableOpacity>
-          </span>
-        ) : (
-          <TouchableOpacity
-            style={styles.gearButton}
-            onPress={() => router.push('/settings')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="settings-outline" size={22} color="#8A8A8A" />
-          </TouchableOpacity>
-        )}
+          )}
+        </View>
       </View>
       {((todoistToken || googleConnected) && !error && !isLoading) && <ProgressBar />}
       {todoistDisconnected && queue.length > 0 && (
@@ -199,6 +221,18 @@ export function CardDeck() {
           <Text style={styles.undoButton}>Undo</Text>
         </TouchableOpacity>
       </View>
+      <View style={[styles.undoToast, !showRescheduledToast && styles.undoToastHidden]}>
+        <Text style={styles.undoLabel}>Rescheduled to tomorrow</Text>
+      </View>
+      <AddTaskModal
+        visible={showAddTask}
+        onClose={() => setShowAddTask(false)}
+        onCreated={() => {
+          setShowAddTask(false);
+          fetchCards(todoistToken);
+        }}
+        todoistToken={todoistToken}
+      />
     </SafeAreaView>
   );
 }
@@ -225,6 +259,14 @@ const styles = StyleSheet.create({
   },
   topBarSpacer: {
     width: 40,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addButton: {
+    padding: 6,
   },
   gearButton: {
     padding: 6,

@@ -50,7 +50,8 @@ async function get<T>(path: string, token: string): Promise<T> {
     const body = await res.text().catch(() => '(unreadable)');
     const requestId = res.headers.get('x-request-id') ?? undefined;
     const { errorCode, retryAfter, errorTag } = parse401(body);
-    console.error('[todoist] 401:', { endpoint: path, errorCode, errorTag, requestId, body });
+    const log = errorCode === 477 ? console.warn : console.error;
+    log('[todoist] 401:', { endpoint: path, errorCode, errorTag, requestId, body });
     throw new TodoistAuthError(body, errorCode, retryAfter, errorTag, requestId);
   }
   if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
@@ -70,7 +71,8 @@ export async function fetchTasks(token: string): Promise<TodoistTask[]> {
       const body = await res.text().catch(() => '(unreadable)');
       const requestId = res.headers.get('x-request-id') ?? undefined;
       const { errorCode, retryAfter, errorTag } = parse401(body);
-      console.error('[todoist] 401:', { endpoint: url, errorCode, errorTag, requestId, body });
+      const log = errorCode === 477 ? console.warn : console.error;
+      log('[todoist] 401:', { endpoint: url, errorCode, errorTag, requestId, body });
       throw new TodoistAuthError(body, errorCode, retryAfter, errorTag, requestId);
     }
     if (!res.ok) throw new Error(`Todoist API error: ${res.status}`);
@@ -124,6 +126,44 @@ export async function refreshTodoistToken(
   } catch (e) {
     console.error('[todoist] token refresh failed:', e);
     return null;
+  }
+}
+
+export async function rescheduleTask(taskId: string, dueDate: string, token: string): Promise<void> {
+  const res = await fetch(`${BASE}/tasks/${taskId}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ due_date: dueDate }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    if (res.status === 401) {
+      const { errorCode, retryAfter } = parse401(body);
+      throw new TodoistAuthError(body, errorCode, retryAfter);
+    }
+    throw new Error(`Todoist API error: ${res.status}`);
+  }
+}
+
+export async function createTask(content: string, token: string): Promise<void> {
+  const res = await fetch(`${BASE}/tasks`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content, due_string: 'today' }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    if (res.status === 401) {
+      const { errorCode, retryAfter } = parse401(body);
+      throw new TodoistAuthError(body, errorCode, retryAfter);
+    }
+    throw new Error(`Todoist API error: ${res.status}`);
   }
 }
 

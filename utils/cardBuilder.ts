@@ -39,6 +39,7 @@ export function buildDeckCards(
     title: event.summary,
     subtitle: `${formatEventTime(event)} · ${event.calendarName}`,
     description: event.description,
+    sourceUrl: event.htmlLink,
   }));
 
   const taskCards: Card[] = sortedTasks.map((task) => ({
@@ -47,6 +48,7 @@ export function buildDeckCards(
     title: task.content,
     subtitle: `${projectMap[task.project_id] ?? 'Inbox'} · ${formatDueTime(task.due)}`,
     description: task.description || undefined,
+    sourceUrl: `https://app.todoist.com/app/task/${task.id}`,
   }));
 
   return [...eventCards, ...taskCards];
