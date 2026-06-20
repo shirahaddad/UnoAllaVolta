@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { createTask } from '@/services/todoist';
+import { useDeckStore } from '@/store/deckStore';
 
 interface Props {
   visible: boolean;
@@ -9,15 +10,40 @@ interface Props {
   todoistToken: string | null;
 }
 
+const PRIORITY_MAP: Record<string, number> = { p1: 4, p2: 3, p3: 2, p4: 1 };
+
+function parseQuickAdd(raw: string, projects: { id: string; name: string }[]) {
+  let content = raw;
+  let priority: number | undefined;
+  let project_id: string | undefined;
+
+  const priorityMatch = content.match(/\b(p[1-4])\b/i);
+  if (priorityMatch) {
+    priority = PRIORITY_MAP[priorityMatch[1].toLowerCase()];
+    content = content.replace(priorityMatch[0], '').trim();
+  }
+
+  content = content.replace(/#(\S+)/g, (token, name) => {
+    if (project_id) return token;
+    const match = projects.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (match) { project_id = match.id; return ''; }
+    return token;
+  }).replace(/\s{2,}/g, ' ').trim();
+
+  return { content, priority, project_id };
+}
+
 export function AddTaskModal({ visible, onClose, onCreated, todoistToken }: Props) {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const projects = useDeckStore((s) => s.projects);
 
   async function handleAdd() {
     if (!text.trim() || !todoistToken || isSubmitting) return;
     setIsSubmitting(true);
+    const { content, priority, project_id } = parseQuickAdd(text.trim(), projects);
     try {
-      await createTask(text.trim(), todoistToken);
+      await createTask(content, todoistToken, { priority, project_id });
       setText('');
       onCreated();
     } catch (e) {
@@ -38,7 +64,7 @@ export function AddTaskModal({ visible, onClose, onCreated, todoistToken }: Prop
         <View style={styles.sheet}>
           <TextInput
             style={styles.input}
-            placeholder="Task title..."
+            placeholder="Task title... #project p2"
             placeholderTextColor="#4A4A4A"
             value={text}
             onChangeText={setText}

@@ -148,14 +148,18 @@ export async function rescheduleTask(taskId: string, dueDate: string, token: str
   }
 }
 
-export async function createTask(content: string, token: string): Promise<void> {
+export async function createTask(
+  content: string,
+  token: string,
+  options?: { project_id?: string; priority?: number },
+): Promise<void> {
   const res = await fetch(`${BASE}/tasks`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ content, due_string: 'today' }),
+    body: JSON.stringify({ content, due_string: 'today', ...options }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
