@@ -49,8 +49,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   dismissCalendarEvent: async (id) => {
     const next = [...new Set([...get().dismissedCalendarEventIds, id])];
-    await SecureStore.setItemAsync(KEY_DISMISSED, JSON.stringify({ date: localDateStr(), ids: next }));
     set({ dismissedCalendarEventIds: next });
+    await SecureStore.setItemAsync(KEY_DISMISSED, JSON.stringify({ date: localDateStr(), ids: next }));
   },
 
   resetDismissedCalendarEvents: async () => {

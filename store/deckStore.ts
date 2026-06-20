@@ -215,6 +215,8 @@ export const useDeckStore = create<DeckState>((set) => ({
       }
 
       const dismissed = new Set(settings.dismissedCalendarEventIds);
+      const pendingCard = useDeckStore.getState().pendingUndo;
+      if (pendingCard?.type === 'calendar') dismissed.add(pendingCard.id);
       events = events.filter((e) => !dismissed.has(e.id));
 
       const cards = buildDeckCards(tasks, projects, events);
