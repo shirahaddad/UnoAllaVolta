@@ -1,4 +1,8 @@
-const BASE = 'https://api.todoist.com/api/v1';
+import { Platform } from 'react-native';
+
+// Browsers block direct calls to api.todoist.com (no CORS headers on that origin),
+// so web routes through a same-origin Vercel proxy; native hits the API directly.
+const BASE = Platform.OS === 'web' ? '/api/todoist' : 'https://api.todoist.com/api/v1';
 
 export interface TodoistTask {
   id: string;
