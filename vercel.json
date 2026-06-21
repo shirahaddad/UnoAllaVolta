@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/todoist/(.*)", "destination": "/api/todoist-proxy" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }

@@ -3,14 +3,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const TODOIST_BASE = 'https://api.todoist.com/api/v1';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel doesn't substitute the [...path] segment into req.query.path here — it
-  // leaves the pathname intact in req.url but appends a literal "...path=" param
-  // instead. Parse the real path from the URL and strip that artifact out.
+  // This function is reached via an explicit vercel.json rewrite (not a [...path]
+  // dynamic route — that builder mis-generates a single-segment-only regex for
+  // catch-all api routes). req.url still carries the original incoming path/query.
   const [pathname, search] = (req.url ?? '').split('?');
   const path = pathname.replace(/^\/api\/todoist\/?/, '');
-  const params = new URLSearchParams(search ?? '');
-  params.delete('...path');
-  const queryString = params.toString();
+  const queryString = search ?? '';
   const url = `${TODOIST_BASE}/${path}${queryString ? `?${queryString}` : ''}`;
 
   const headers: Record<string, string> = {};
