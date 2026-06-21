@@ -86,17 +86,6 @@ export function FlipCard({ card, onDone, onLater, onTomorrow, onOpen }: FlipCard
     return () => window.removeEventListener('mouseup', onWindowMouseUp);
   }, []);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        onLaterRef.current();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
   const rotate = translateX.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: ['-8deg', '0deg', '8deg'],

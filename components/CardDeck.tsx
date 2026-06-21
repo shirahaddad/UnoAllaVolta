@@ -17,7 +17,7 @@ export function CardDeck() {
   const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards, browseIndex, browseBy } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -25,7 +25,17 @@ export function CardDeck() {
     }, [todoistToken, googleConnected])
   );
 
-  const current = queue[0];
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') browseBy(1);
+      else if (e.key === 'ArrowLeft') browseBy(-1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [browseBy]);
+
+  const current = queue[Math.min(browseIndex, Math.max(queue.length - 1, 0))];
   const [laterSeq, setLaterSeq] = useState(0);
   const [showAddTask, setShowAddTask] = useState(false);
   const [showRescheduledToast, setShowRescheduledToast] = useState(false);

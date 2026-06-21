@@ -3,11 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useDeckStore } from '@/store/deckStore';
 
 export function ProgressBar() {
-  const { queue, doneCount, laterCount, totalCount } = useDeckStore();
+  const { queue, doneCount, laterCount, totalCount, browseIndex } = useDeckStore();
 
-  const current = laterCount + 1;
+  const current = laterCount + browseIndex + 1;
   const total = totalCount - doneCount;
-  const highlightIndex = laterCount;
+  const highlightIndex = laterCount + browseIndex;
 
   if (queue.length === 0) {
     return (

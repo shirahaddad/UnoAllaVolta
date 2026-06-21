@@ -34,6 +34,7 @@ interface DeckState {
   authErrorDetail: string | null;
   todoistDisconnected: boolean;
   pendingUndo: Card | null;
+  browseIndex: number;
   loadCachedCards: () => Promise<void>;
   markDone: (id: string) => void;
   commitPendingUndo: () => void;
@@ -41,6 +42,7 @@ interface DeckState {
   moveLater: (id: string) => void;
   rescheduleTomorrow: (id: string) => void;
   fetchCards: (token?: string | null, retryCount?: number) => Promise<void>;
+  browseBy: (delta: number) => void;
 }
 
 function _commit(card: Card) {
@@ -65,6 +67,7 @@ export const useDeckStore = create<DeckState>((set) => ({
   authErrorDetail: null,
   todoistDisconnected: false,
   pendingUndo: null,
+  browseIndex: 0,
 
   loadCachedCards: async () => {
     try {
@@ -74,7 +77,7 @@ export const useDeckStore = create<DeckState>((set) => ({
       const todayStr = new Date().toLocaleDateString('en-CA');
       if (date !== todayStr) return;
       if (Array.isArray(cards) && cards.length > 0) {
-        set({ queue: cards, laterCount, totalCount: cards.length });
+        set({ queue: cards, laterCount, totalCount: cards.length, browseIndex: 0 });
       }
     } catch {}
   },
@@ -92,6 +95,7 @@ export const useDeckStore = create<DeckState>((set) => ({
         doneCount: state.doneCount + 1,
         laterCount: newLaterCount,
         pendingUndo: card,
+        browseIndex: 0,
       };
     }),
 
@@ -110,6 +114,7 @@ export const useDeckStore = create<DeckState>((set) => ({
         pendingUndo: null,
         queue: newQueue,
         doneCount: Math.max(0, state.doneCount - 1),
+        browseIndex: 0,
       };
     }),
 
@@ -120,7 +125,7 @@ export const useDeckStore = create<DeckState>((set) => ({
       const newQueue = [...state.queue.filter((c) => c.id !== id), card];
       const newLaterCount = state.laterCount + 1 >= state.queue.length ? 0 : state.laterCount + 1;
       useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
-      return { queue: newQueue, laterCount: newLaterCount };
+      return { queue: newQueue, laterCount: newLaterCount, browseIndex: 0 };
     }),
 
   rescheduleTomorrow: (id) =>
@@ -136,7 +141,14 @@ export const useDeckStore = create<DeckState>((set) => ({
       const newQueue = state.queue.filter((c) => c.id !== id);
       const newLaterCount = state.laterCount >= newQueue.length ? 0 : state.laterCount;
       useSettingsStore.getState().saveQueueState(newQueue.map(c => c.id), newLaterCount).catch(console.error);
-      return { queue: newQueue, laterCount: newLaterCount, doneCount: state.doneCount + 1 };
+      return { queue: newQueue, laterCount: newLaterCount, doneCount: state.doneCount + 1, browseIndex: 0 };
+    }),
+
+  browseBy: (delta) =>
+    set((state) => {
+      const max = Math.max(state.queue.length - 1, 0);
+      const next = Math.min(Math.max(state.browseIndex + delta, 0), max);
+      return { browseIndex: next };
     }),
 
   fetchCards: async (token, retryCount = 0) => {
@@ -259,6 +271,7 @@ export const useDeckStore = create<DeckState>((set) => ({
         error: todoistAuthFailed && noCards ? 'invalid_token' : null,
         todoistDisconnected: todoistAuthFailed,
         authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
+        browseIndex: 0,
       });
       if (!todoistAuthFailed || !noCards) {
         SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount, date: todayStr })).catch(console.error);
