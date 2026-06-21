@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
+import { TODOIST_OAUTH_URL } from '@/services/todoist';
 import { getOAuthRedirectUri } from '@/utils/redirectUri';
 
 export default function AuthCallback() {
@@ -25,7 +26,7 @@ export default function AuthCallback() {
       try {
         if (state === 'todoist') {
           setStatus('Connecting Todoist...');
-          const res = await fetch('https://todoist.com/oauth/access_token', {
+          const res = await fetch(TODOIST_OAUTH_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({

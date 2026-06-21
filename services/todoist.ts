@@ -1,8 +1,10 @@
 import { Platform } from 'react-native';
 
-// Browsers block direct calls to api.todoist.com (no CORS headers on that origin),
-// so web routes through a same-origin Vercel proxy; native hits the API directly.
+// Browsers block direct calls to api.todoist.com and todoist.com/oauth (no CORS
+// headers on those origins), so web routes through same-origin Vercel proxies;
+// native hits Todoist directly.
 const BASE = Platform.OS === 'web' ? '/api/todoist' : 'https://api.todoist.com/api/v1';
+export const TODOIST_OAUTH_URL = Platform.OS === 'web' ? '/api/todoist-oauth' : 'https://todoist.com/oauth/access_token';
 
 export interface TodoistTask {
   id: string;
@@ -114,7 +116,7 @@ export async function refreshTodoistToken(
   clientSecret: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch('https://todoist.com/oauth/access_token', {
+    const res = await fetch(TODOIST_OAUTH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
