@@ -5,9 +5,9 @@ import { useDeckStore } from '@/store/deckStore';
 export function ProgressBar() {
   const { queue, doneCount, laterCount, totalCount, browseIndex } = useDeckStore();
 
-  const current = laterCount + browseIndex + 1;
   const total = totalCount - doneCount;
-  const highlightIndex = laterCount + browseIndex;
+  const highlightIndex = total > 0 ? (laterCount + browseIndex) % total : 0;
+  const current = highlightIndex + 1;
 
   if (queue.length === 0) {
     return (

@@ -146,8 +146,9 @@ export const useDeckStore = create<DeckState>((set) => ({
 
   browseBy: (delta) =>
     set((state) => {
-      const max = Math.max(state.queue.length - 1, 0);
-      const next = Math.min(Math.max(state.browseIndex + delta, 0), max);
+      const len = state.queue.length;
+      if (len === 0) return { browseIndex: 0 };
+      const next = ((state.browseIndex + delta) % len + len) % len;
       return { browseIndex: next };
     }),
 
