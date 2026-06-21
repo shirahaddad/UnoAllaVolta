@@ -152,28 +152,38 @@ export const useDeckStore = create<DeckState>((set) => ({
       let todoistAuthDetail: string | null = null;
 
       if (token) {
-        try {
-          [allTasks, projects] = await Promise.all([fetchTasks(token), fetchProjects(token)]);
-        } catch (e) {
-          if (e instanceof TodoistAuthError) {
-            if (e.errorCode === 477 && retryCount === 0) {
+        // allSettled so both promises' rejections are handled — with Promise.all a
+        // simultaneous 477 on the second call would become an unhandled rejection.
+        const [tasksResult, projectsResult] = await Promise.allSettled([
+          fetchTasks(token),
+          fetchProjects(token),
+        ]);
+        const firstError =
+          tasksResult.status === 'rejected' ? tasksResult.reason :
+          projectsResult.status === 'rejected' ? projectsResult.reason : null;
+        if (firstError) {
+          if (firstError instanceof TodoistAuthError) {
+            if (firstError.errorCode === 477 && retryCount === 0) {
               // Token expired — attempt refresh before giving up (per Todoist docs: do NOT retry same token).
               const { todoistRefreshToken } = useAuthStore.getState();
               if (todoistRefreshToken) {
                 const newToken = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
                 if (newToken) {
                   await useAuthStore.getState().setTodoistToken(newToken);
-                  useDeckStore.getState().fetchCards(newToken, 1);
+                  await useDeckStore.getState().fetchCards(newToken, 1);
                   return;
                 }
               }
             }
             todoistAuthFailed = true;
-            todoistAuthDetail = (e as Error).message || null;
-            console.error('[deckStore] Todoist auth error:', e);
+            todoistAuthDetail = (firstError as Error).message || null;
+            console.error('[deckStore] Todoist auth error:', firstError);
           } else {
-            throw e;
+            throw firstError;
           }
+        } else {
+          allTasks = (tasksResult as PromiseFulfilledResult<typeof allTasks>).value;
+          projects = (projectsResult as PromiseFulfilledResult<typeof projects>).value;
         }
       }
 
