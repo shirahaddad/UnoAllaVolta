@@ -180,10 +180,13 @@ export const useDeckStore = create<DeckState>((set) => ({
               // Token expired — attempt refresh before giving up (per Todoist docs: do NOT retry same token).
               const { todoistRefreshToken } = useAuthStore.getState();
               if (todoistRefreshToken) {
-                const newToken = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
-                if (newToken) {
-                  await useAuthStore.getState().setTodoistToken(newToken);
-                  await useDeckStore.getState().fetchCards(newToken, 1);
+                const refreshed = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
+                if (refreshed) {
+                  await useAuthStore.getState().setTodoistToken(refreshed.accessToken);
+                  if (refreshed.refreshToken) {
+                    await useAuthStore.getState().setTodoistRefreshToken(refreshed.refreshToken);
+                  }
+                  await useDeckStore.getState().fetchCards(refreshed.accessToken, 1);
                   return;
                 }
               }

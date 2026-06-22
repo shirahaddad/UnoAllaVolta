@@ -110,11 +110,14 @@ export async function closeTask(taskId: string, token: string): Promise<void> {
   }
 }
 
+// Todoist rotates the refresh token on every use (the old one is consumed and
+// becomes invalid), so the caller must persist the new refreshToken too, or
+// every refresh after the first will fail with invalid_grant.
 export async function refreshTodoistToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string,
-): Promise<string | null> {
+): Promise<{ accessToken: string; refreshToken?: string } | null> {
   try {
     const res = await fetch(TODOIST_OAUTH_URL, {
       method: 'POST',
@@ -127,8 +130,9 @@ export async function refreshTodoistToken(
       }).toString(),
     });
     const data = await res.json();
-    console.log('[todoist] token refresh response:', res.status, data.access_token ? 'got token' : 'no token');
-    return (data.access_token as string) ?? null;
+    console.log('[todoist] token refresh response:', res.status, data.access_token ? 'got token' : JSON.stringify(data));
+    if (!data.access_token) return null;
+    return { accessToken: data.access_token as string, refreshToken: data.refresh_token as string | undefined };
   } catch (e) {
     console.error('[todoist] token refresh failed:', e);
     return null;
