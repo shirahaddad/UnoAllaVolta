@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
+import { useDeckStore } from '@/store/deckStore';
 import { TODOIST_OAUTH_URL } from '@/services/todoist';
 import { getOAuthRedirectUri } from '@/utils/redirectUri';
 
@@ -42,6 +43,7 @@ export default function AuthCallback() {
             if (data.refresh_token) {
               await setTodoistRefreshToken(data.refresh_token);
             }
+            await useDeckStore.getState().fetchCards(data.access_token);
             setStatus('Todoist connected!');
           }
         } else {

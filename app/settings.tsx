@@ -208,19 +208,27 @@ export default function SettingsScreen() {
                 {todoistDisconnected && authErrorDetail && (
                   <Text style={styles.errorDetail} numberOfLines={3}>{authErrorDetail}</Text>
                 )}
-                <TouchableOpacity
-                  style={styles.disconnectButton}
-                  onPress={handleTestConnection}
-                  disabled={testing}
-                >
-                  <Text style={styles.disconnectText}>{testing ? 'Testing…' : 'Test connection'}</Text>
-                </TouchableOpacity>
-                {testResult !== null && (
-                  <Text style={styles.testResultText}>{testResult}</Text>
+                {todoistDisconnected ? (
+                  <TouchableOpacity style={styles.saveButton} onPress={handleTodoistConnect}>
+                    <Text style={styles.saveButtonText}>Reconnect</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.disconnectButton}
+                      onPress={handleTestConnection}
+                      disabled={testing}
+                    >
+                      <Text style={styles.disconnectText}>{testing ? 'Testing…' : 'Test connection'}</Text>
+                    </TouchableOpacity>
+                    {testResult !== null && (
+                      <Text style={styles.testResultText}>{testResult}</Text>
+                    )}
+                    <TouchableOpacity style={styles.disconnectButton} onPress={handleTodoistDisconnect}>
+                      <Text style={styles.disconnectText}>Disconnect</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-                <TouchableOpacity style={styles.disconnectButton} onPress={handleTodoistDisconnect}>
-                  <Text style={styles.disconnectText}>Disconnect</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               <TouchableOpacity style={styles.saveButton} onPress={handleTodoistConnect}>
