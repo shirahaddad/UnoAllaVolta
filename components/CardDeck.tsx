@@ -17,12 +17,13 @@ export function CardDeck() {
   const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards, browseIndex, browseBy } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards, browseIndex, browseBy, lastFetchedAt } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
-      if (todoistToken || googleConnected) fetchCards(todoistToken);
-    }, [todoistToken, googleConnected])
+      const isStale = Date.now() - lastFetchedAt > 15_000;
+      if (isStale && (todoistToken || googleConnected)) fetchCards(todoistToken);
+    }, [todoistToken, googleConnected, lastFetchedAt])
   );
 
   useEffect(() => {

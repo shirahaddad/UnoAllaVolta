@@ -35,6 +35,7 @@ interface DeckState {
   todoistDisconnected: boolean;
   pendingUndo: Card | null;
   browseIndex: number;
+  lastFetchedAt: number;
   loadCachedCards: () => Promise<void>;
   markDone: (id: string) => void;
   commitPendingUndo: () => void;
@@ -68,6 +69,7 @@ export const useDeckStore = create<DeckState>((set) => ({
   todoistDisconnected: false,
   pendingUndo: null,
   browseIndex: 0,
+  lastFetchedAt: 0,
 
   loadCachedCards: async () => {
     try {
@@ -154,6 +156,13 @@ export const useDeckStore = create<DeckState>((set) => ({
 
   fetchCards: async (token, retryCount = 0) => {
     set({ isLoading: true, error: null, authErrorDetail: null });
+
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      set({ isLoading: false, error: 'network', authErrorDetail: null });
+    }, 30_000);
+
     try {
       const todayStr = new Date().toLocaleDateString('en-CA');
       const settings = useSettingsStore.getState();
@@ -186,6 +195,7 @@ export const useDeckStore = create<DeckState>((set) => ({
                   if (refreshed.refreshToken) {
                     await useAuthStore.getState().setTodoistRefreshToken(refreshed.refreshToken);
                   }
+                  clearTimeout(timeoutId);
                   await useDeckStore.getState().fetchCards(refreshed.accessToken, 1);
                   return;
                 }
@@ -264,25 +274,30 @@ export const useDeckStore = create<DeckState>((set) => ({
       // When Todoist is disconnected but calendar cards exist: surface banner, not error screen.
       // When Todoist is disconnected and nothing else loaded either: surface error screen.
       const noCards = ordered.length === 0;
-      set({
-        queue: ordered,
-        projects,
-        calendars,
-        totalCount: ordered.length,
-        doneCount: 0,
-        laterCount,
-        isLoading: false,
-        error: todoistAuthFailed && noCards ? 'invalid_token' : null,
-        todoistDisconnected: todoistAuthFailed,
-        authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
-        browseIndex: 0,
-      });
-      if (!todoistAuthFailed || !noCards) {
-        SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount, date: todayStr })).catch(console.error);
+      clearTimeout(timeoutId);
+      if (!timedOut) {
+        set({
+          queue: ordered,
+          projects,
+          calendars,
+          totalCount: ordered.length,
+          doneCount: 0,
+          laterCount,
+          isLoading: false,
+          error: todoistAuthFailed && noCards ? 'invalid_token' : null,
+          todoistDisconnected: todoistAuthFailed,
+          authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
+          browseIndex: 0,
+          lastFetchedAt: todoistAuthFailed ? 0 : Date.now(),
+        });
+        if (!todoistAuthFailed || !noCards) {
+          SecureStore.setItemAsync(KEY_DECK, JSON.stringify({ cards: ordered, laterCount, date: todayStr })).catch(console.error);
+        }
       }
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error('[deckStore] fetchCards error:', e);
-      set({ isLoading: false, error: 'network', authErrorDetail: null });
+      if (!timedOut) set({ isLoading: false, error: 'network', authErrorDetail: null });
     }
   },
 }));
