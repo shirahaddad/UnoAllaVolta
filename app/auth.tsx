@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/store/googleAuthStore';
+import { useGoogleAuthStore, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_URL } from '@/store/googleAuthStore';
 import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { TODOIST_OAUTH_URL } from '@/services/todoist';
@@ -48,7 +48,7 @@ export default function AuthCallback() {
           }
         } else {
           setStatus('Connecting Google Calendar...');
-          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
@@ -72,10 +72,18 @@ export default function AuthCallback() {
               email: userData.email ?? '',
             });
             setStatus('Google Calendar connected!');
+          } else {
+            console.error('[auth] google token exchange failed:', tokenRes.status, JSON.stringify(tokenData));
+            setStatus(`Couldn't connect Google Calendar: ${tokenData.error_description || tokenData.error || tokenRes.status}`);
+            setTimeout(() => router.back(), 2500);
+            return;
           }
         }
       } catch (e) {
         console.error('[auth] error:', e);
+        setStatus(`Connection failed: ${e instanceof Error ? e.message : String(e)}`);
+        setTimeout(() => router.back(), 2500);
+        return;
       }
       setTimeout(() => router.back(), 800);
     })();

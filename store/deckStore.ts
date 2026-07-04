@@ -33,6 +33,7 @@ interface DeckState {
   error: ErrorKind;
   authErrorDetail: string | null;
   todoistDisconnected: boolean;
+  googleCalendarError: string | null;
   pendingUndo: Card | null;
   browseIndex: number;
   lastFetchedAt: number;
@@ -67,6 +68,7 @@ export const useDeckStore = create<DeckState>((set) => ({
   error: null,
   authErrorDetail: null,
   todoistDisconnected: false,
+  googleCalendarError: null,
   pendingUndo: null,
   browseIndex: 0,
   lastFetchedAt: 0,
@@ -155,7 +157,7 @@ export const useDeckStore = create<DeckState>((set) => ({
     }),
 
   fetchCards: async (token, retryCount = 0) => {
-    set({ isLoading: true, error: null, authErrorDetail: null });
+    set({ isLoading: true, error: null, authErrorDetail: null, googleCalendarError: null });
 
     let timedOut = false;
     const timeoutId = setTimeout(() => {
@@ -220,6 +222,10 @@ export const useDeckStore = create<DeckState>((set) => ({
 
       // Fetch calendar regardless of Todoist outcome.
       const googleToken = await useGoogleAuthStore.getState().getValidToken();
+      // getValidToken() sets authError only on a failed refresh attempt, not when
+      // there's simply no Google account connected — so this only fires when
+      // Google is actually connected but the token refresh failed.
+      let googleCalendarError = useGoogleAuthStore.getState().authError;
       let events: Awaited<ReturnType<typeof fetchTodayEvents>> = [];
       let calendars: GoogleCalendar[] = [];
       if (googleToken) {
@@ -247,6 +253,7 @@ export const useDeckStore = create<DeckState>((set) => ({
           }
         } catch (e) {
           console.error('[deckStore] calendar fetch error:', e);
+          googleCalendarError = e instanceof Error ? e.message : String(e);
         }
       }
 
@@ -287,6 +294,7 @@ export const useDeckStore = create<DeckState>((set) => ({
           error: todoistAuthFailed && noCards ? 'invalid_token' : null,
           todoistDisconnected: todoistAuthFailed,
           authErrorDetail: todoistAuthFailed ? todoistAuthDetail : null,
+          googleCalendarError,
           browseIndex: 0,
           lastFetchedAt: todoistAuthFailed ? 0 : Date.now(),
         });

@@ -17,7 +17,7 @@ export function CardDeck() {
   const { todoistToken, tokenFoundInStorage, setTodoistToken } = useAuthStore();
   const { accessToken: googleAccessToken, email: googleEmail } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
-  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards, browseIndex, browseBy, lastFetchedAt } = useDeckStore();
+  const { queue, isLoading, error, authErrorDetail, todoistDisconnected, googleCalendarError, pendingUndo, markDone, commitPendingUndo, cancelPendingUndo, moveLater, rescheduleTomorrow, fetchCards, browseIndex, browseBy, lastFetchedAt } = useDeckStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -206,6 +206,17 @@ export function CardDeck() {
           <Text style={styles.bannerText}>Todoist disconnected</Text>
           <TouchableOpacity
             onPress={() => { setTodoistToken(null); router.push('/settings'); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.bannerAction}>Reconnect →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {googleCalendarError && (
+        <View style={styles.todoist_banner}>
+          <Text style={styles.bannerText}>Google Calendar disconnected</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/settings')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.bannerAction}>Reconnect →</Text>

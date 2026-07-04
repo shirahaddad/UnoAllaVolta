@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -92,7 +93,7 @@ export default function SettingsScreen() {
   const handleTodoistDisconnect = async () => {
     await setTodoistToken(null);
   };
-  const { calendars: deckCalendars, todoistDisconnected, authErrorDetail } = useDeckStore();
+  const { calendars: deckCalendars, todoistDisconnected, authErrorDetail, googleCalendarError } = useDeckStore();
   const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar, resetDismissedCalendarEvents } = useSettingsStore();
   const { email: googleEmail, accessToken: googleAccessToken, clearTokens, getValidToken } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
@@ -117,6 +118,8 @@ export default function SettingsScreen() {
   const [calendarsExpanded, setCalendarsExpanded] = useState(false);
   const [projectList, setProjectList] = useState<TodoistProject[]>([]);
   const [calendarList, setCalendarList] = useState<GoogleCalendar[]>(deckCalendars);
+  const [calendarsLoading, setCalendarsLoading] = useState(false);
+  const [calendarsError, setCalendarsError] = useState<string | null>(null);
 
   const handleGoogleConnect = async () => {
     const redirectUri = getOAuthRedirectUri();
@@ -157,14 +160,23 @@ export default function SettingsScreen() {
   }, [todoistToken]);
 
   useEffect(() => {
-    if (googleConnected) {
-      getValidToken().then(async (token) => {
-        if (token) {
-          const cals = await fetchCalendarList(token);
-          setCalendarList(cals);
+    if (!googleConnected) return;
+    setCalendarsLoading(true);
+    setCalendarsError(null);
+    getValidToken()
+      .then(async (token) => {
+        if (!token) {
+          setCalendarsError(useGoogleAuthStore.getState().authError || "Couldn't refresh Google session");
+          return;
         }
-      });
-    }
+        const cals = await fetchCalendarList(token);
+        setCalendarList(cals);
+      })
+      .catch((e) => {
+        console.error('[settings] calendar list fetch failed:', e);
+        setCalendarsError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => setCalendarsLoading(false));
   }, [googleConnected]);
 
   const handleGoogleDisconnect = async () => {
@@ -278,9 +290,19 @@ export default function SettingsScreen() {
             {googleConnected ? (
               <View style={styles.box}>
                 <View style={styles.connectedRow}>
-                  <View style={styles.dot} />
-                  <Text style={styles.connectedText}>Connected</Text>
+                  <View style={[styles.dot, (calendarsError || googleCalendarError) && styles.errorDot]} />
+                  <Text style={[styles.connectedText, (calendarsError || googleCalendarError) && styles.errorText]}>
+                    {calendarsError || googleCalendarError ? 'Connection error' : 'Connected'}
+                  </Text>
                 </View>
+                {(calendarsError || googleCalendarError) && (
+                  <Text style={styles.errorDetail} numberOfLines={3}>{calendarsError || googleCalendarError}</Text>
+                )}
+                {(calendarsError || googleCalendarError) && (
+                  <TouchableOpacity style={styles.saveButton} onPress={handleGoogleConnect}>
+                    <Text style={styles.saveButtonText}>Reconnect</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={styles.disconnectButton} onPress={handleGoogleDisconnect}>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
@@ -301,20 +323,24 @@ export default function SettingsScreen() {
           </View>
 
           {/* CALENDAR SELECTION */}
-          {googleConnected && calendarList.length > 0 && (
+          {googleConnected && (calendarsLoading || calendarList.length > 0) && (
             <View style={styles.section}>
               <TouchableOpacity
                 style={styles.collapsibleHeader}
                 onPress={() => setCalendarsExpanded(v => !v)}
               >
                 <Text style={styles.sectionLabel}>CALENDARS</Text>
-                <Ionicons
-                  name={calendarsExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color="#8A8A8A"
-                />
+                {calendarsLoading ? (
+                  <ActivityIndicator size="small" color="#8A8A8A" />
+                ) : (
+                  <Ionicons
+                    name={calendarsExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color="#8A8A8A"
+                  />
+                )}
               </TouchableOpacity>
-              {calendarsExpanded && (
+              {calendarsExpanded && !calendarsLoading && (
                 <View style={styles.chipContainer}>
                   {calendarList.map((cal) => {
                     const included = !excludedCalendarIds.includes(cal.id);
