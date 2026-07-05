@@ -61,6 +61,21 @@ export default function RootLayout() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(console.error);
+  }, []);
+
+  const activeCardCount = useDeckStore((s) => s.queue.length);
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    if (activeCardCount > 0) {
+      (navigator as any).setAppBadge(activeCardCount).catch(() => {});
+    } else {
+      (navigator as any).clearAppBadge().catch(() => {});
+    }
+  }, [activeCardCount]);
+
   if (!ready) return null;
 
   return (

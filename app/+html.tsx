@@ -9,6 +9,8 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <title>UnoAllaVolta</title>
         <meta name="description" content="One at a time. A focused task and calendar view for getting things done." />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#0F0F0F" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
