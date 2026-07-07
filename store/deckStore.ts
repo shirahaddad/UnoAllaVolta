@@ -47,10 +47,34 @@ interface DeckState {
   browseBy: (delta: number) => void;
 }
 
+// A 477 means the access token expired mid-session — refresh once and retry,
+// otherwise the mutation (e.g. closeTask) silently fails and Todoist never
+// sees it even though the app already updated its local state.
+async function withTokenRefresh<T>(token: string, fn: (token: string) => Promise<T>): Promise<T> {
+  try {
+    return await fn(token);
+  } catch (e) {
+    if (e instanceof TodoistAuthError && e.errorCode === 477) {
+      const { todoistRefreshToken } = useAuthStore.getState();
+      if (todoistRefreshToken) {
+        const refreshed = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
+        if (refreshed) {
+          await useAuthStore.getState().setTodoistToken(refreshed.accessToken);
+          if (refreshed.refreshToken) {
+            await useAuthStore.getState().setTodoistRefreshToken(refreshed.refreshToken);
+          }
+          return fn(refreshed.accessToken);
+        }
+      }
+    }
+    throw e;
+  }
+}
+
 function _commit(card: Card) {
   if (card.type === 'task') {
     const token = useAuthStore.getState().todoistToken;
-    if (token) closeTask(card.id, token).catch((e) => console.error('[todoist] closeTask failed:', e));
+    if (token) withTokenRefresh(token, (t) => closeTask(card.id, t)).catch((e) => console.error('[todoist] closeTask failed:', e));
   }
   if (card.type === 'calendar') {
     useSettingsStore.getState().dismissCalendarEvent(card.id).catch(console.error);
@@ -139,7 +163,7 @@ export const useDeckStore = create<DeckState>((set) => ({
       if (token) {
         const d = new Date();
         d.setDate(d.getDate() + 1);
-        rescheduleTask(id, d.toLocaleDateString('en-CA'), token)
+        withTokenRefresh(token, (t) => rescheduleTask(id, d.toLocaleDateString('en-CA'), t))
           .catch((e) => console.error('[todoist] rescheduleTask failed:', e));
       }
       const newQueue = state.queue.filter((c) => c.id !== id);

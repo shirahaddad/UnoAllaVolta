@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -57,6 +57,21 @@ export function CardDeck() {
       }
     };
   }, [pendingUndo?.id]);
+
+  // Backgrounding (switching apps, locking the phone, quitting) can happen well
+  // inside the 3s undo window and stop the setTimeout above from ever firing —
+  // flush the pending Todoist close immediately rather than losing it.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'background' && next !== 'inactive') return;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      commitPendingUndo();
+    });
+    return () => sub.remove();
+  }, [commitPendingUndo]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
