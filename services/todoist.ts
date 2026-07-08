@@ -113,29 +113,47 @@ export async function closeTask(taskId: string, token: string): Promise<void> {
 // Todoist rotates the refresh token on every use (the old one is consumed and
 // becomes invalid), so the caller must persist the new refreshToken too, or
 // every refresh after the first will fail with invalid_grant.
+async function attemptTodoistTokenRefresh(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<{ accessToken: string; refreshToken?: string } | null> {
+  const res = await fetch(TODOIST_OAUTH_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }).toString(),
+  });
+  const data = await res.json();
+  console.log('[todoist] token refresh response:', res.status, data.access_token ? 'got token' : JSON.stringify(data));
+  if (!data.access_token) {
+    // Distinguish a genuine rejection (invalid_grant — refresh token is dead,
+    // needs reconnect) from a transient failure (proxy 502, upstream 5xx) that
+    // is worth retrying with the same refresh token before giving up.
+    throw new Error(res.ok ? `no access_token in response: ${JSON.stringify(data)}` : `${res.status}: ${JSON.stringify(data)}`);
+  }
+  return { accessToken: data.access_token as string, refreshToken: data.refresh_token as string | undefined };
+}
+
 export async function refreshTodoistToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string,
 ): Promise<{ accessToken: string; refreshToken?: string } | null> {
   try {
-    const res = await fetch(TODOIST_OAUTH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }).toString(),
-    });
-    const data = await res.json();
-    console.log('[todoist] token refresh response:', res.status, data.access_token ? 'got token' : JSON.stringify(data));
-    if (!data.access_token) return null;
-    return { accessToken: data.access_token as string, refreshToken: data.refresh_token as string | undefined };
+    return await attemptTodoistTokenRefresh(refreshToken, clientId, clientSecret);
   } catch (e) {
-    console.error('[todoist] token refresh failed:', e);
-    return null;
+    console.warn('[todoist] token refresh failed, retrying once:', e);
+    try {
+      return await attemptTodoistTokenRefresh(refreshToken, clientId, clientSecret);
+    } catch (e2) {
+      console.error('[todoist] token refresh failed after retry:', e2);
+      return null;
+    }
   }
 }
 

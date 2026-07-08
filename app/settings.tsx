@@ -13,13 +13,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { useAuthStore, TODOIST_CLIENT_ID } from '@/store/authStore';
+import { useAuthStore, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET } from '@/store/authStore';
 import { useGoogleAuthStore, GOOGLE_CLIENT_ID } from '@/store/googleAuthStore';
 import { getOAuthRedirectUri } from '@/utils/redirectUri';
 import { useDeckStore } from '@/store/deckStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { fetchCalendarList, GoogleCalendar } from '@/services/googleCalendar';
-import { fetchProjects, TodoistProject } from '@/services/todoist';
+import { fetchProjects, refreshTodoistToken, TodoistAuthError, TodoistProject } from '@/services/todoist';
 
 function openWebOAuth(authUrl: string): Promise<{ code: string; state: string } | null> {
   return new Promise((resolve) => {
@@ -62,7 +62,7 @@ function openWebOAuth(authUrl: string): Promise<{ code: string; state: string } 
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { todoistToken, setTodoistToken } = useAuthStore();
+  const { todoistToken, todoistRefreshToken, setTodoistToken, setTodoistRefreshToken } = useAuthStore();
   const handleTodoistConnect = async () => {
     const redirectUri = getOAuthRedirectUri();
     const authUrl =
@@ -106,7 +106,23 @@ export default function SettingsScreen() {
     setTesting(true);
     setTestResult(null);
     try {
-      const projects = await fetchProjects(todoistToken!);
+      let projects;
+      try {
+        projects = await fetchProjects(todoistToken!);
+      } catch (e) {
+        // A 477 just means the access token expired mid-session, not that the
+        // connection is actually broken — refresh once and retry before
+        // surfacing an error, same as the deck's own fetch does.
+        if (e instanceof TodoistAuthError && e.errorCode === 477 && todoistRefreshToken) {
+          const refreshed = await refreshTodoistToken(todoistRefreshToken, TODOIST_CLIENT_ID, TODOIST_CLIENT_SECRET);
+          if (!refreshed) throw e;
+          await setTodoistToken(refreshed.accessToken);
+          if (refreshed.refreshToken) await setTodoistRefreshToken(refreshed.refreshToken);
+          projects = await fetchProjects(refreshed.accessToken);
+        } else {
+          throw e;
+        }
+      }
       setTestResult(`✓ OK — ${projects.length} project${projects.length === 1 ? '' : 's'}`);
     } catch (e) {
       setTestResult(`✗ ${e instanceof Error ? e.message : String(e)}`);
