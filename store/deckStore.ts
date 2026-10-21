@@ -248,8 +248,9 @@ export const useDeckStore = create<DeckState>((set) => ({
       const googleToken = await useGoogleAuthStore.getState().getValidToken();
       // getValidToken() sets authError only on a failed refresh attempt, not when
       // there's simply no Google account connected — so this only fires when
-      // Google is actually connected but the token refresh failed.
-      let googleCalendarError = useGoogleAuthStore.getState().authError;
+      // Google is actually connected but the token refresh failed. Ignore it when
+      // we did get a token: authError may be stale from an earlier failure.
+      let googleCalendarError = googleToken ? null : useGoogleAuthStore.getState().authError;
       let events: Awaited<ReturnType<typeof fetchTodayEvents>> = [];
       let calendars: GoogleCalendar[] = [];
       if (googleToken) {

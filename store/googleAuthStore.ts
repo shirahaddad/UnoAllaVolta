@@ -41,7 +41,7 @@ export const useGoogleAuthStore = create<GoogleAuthState>((set, get) => ({
       SecureStore.setItemAsync(KEY_EXPIRES, String(expiresAt)),
       SecureStore.setItemAsync(KEY_EMAIL, email),
     ]);
-    set({ accessToken, refreshToken, expiresAt, email });
+    set({ accessToken, refreshToken, expiresAt, email, authError: null });
   },
 
   clearTokens: async () => {
@@ -51,7 +51,7 @@ export const useGoogleAuthStore = create<GoogleAuthState>((set, get) => ({
       SecureStore.deleteItemAsync(KEY_EXPIRES),
       SecureStore.deleteItemAsync(KEY_EMAIL),
     ]);
-    set({ accessToken: null, refreshToken: null, expiresAt: null, email: null });
+    set({ accessToken: null, refreshToken: null, expiresAt: null, email: null, authError: null });
   },
 
   loadFromStorage: async () => {

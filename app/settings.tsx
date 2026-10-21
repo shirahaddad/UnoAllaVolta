@@ -95,7 +95,7 @@ export default function SettingsScreen() {
   };
   const { calendars: deckCalendars, todoistDisconnected, authErrorDetail, googleCalendarError } = useDeckStore();
   const { excludedProjectIds, toggleProject, excludedCalendarIds, toggleCalendar, resetDismissedCalendarEvents } = useSettingsStore();
-  const { email: googleEmail, accessToken: googleAccessToken, clearTokens, getValidToken } = useGoogleAuthStore();
+  const { email: googleEmail, accessToken: googleAccessToken, refreshToken: googleRefreshToken, clearTokens, getValidToken } = useGoogleAuthStore();
   const googleConnected = !!(googleAccessToken || googleEmail);
 
   const [reimportDone, setReimportDone] = useState(false);
@@ -193,7 +193,8 @@ export default function SettingsScreen() {
         setCalendarsError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setCalendarsLoading(false));
-  }, [googleConnected]);
+    // Re-run on reconnect (new refresh token) so a stale error clears.
+  }, [googleConnected, googleRefreshToken]);
 
   const handleGoogleDisconnect = async () => {
     await clearTokens();
