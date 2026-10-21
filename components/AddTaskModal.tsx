@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { createTask } from '@/services/todoist';
-import { useDeckStore } from '@/store/deckStore';
+import { useDeckStore, withTokenRefresh } from '@/store/deckStore';
 
 interface Props {
   visible: boolean;
@@ -36,18 +36,21 @@ function parseQuickAdd(raw: string, projects: { id: string; name: string }[]) {
 export function AddTaskModal({ visible, onClose, onCreated, todoistToken }: Props) {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const projects = useDeckStore((s) => s.projects);
 
   async function handleAdd() {
     if (!text.trim() || !todoistToken || isSubmitting) return;
     setIsSubmitting(true);
+    setError(null);
     const { content, priority, project_id } = parseQuickAdd(text.trim(), projects);
     try {
-      await createTask(content, todoistToken, { priority, project_id });
+      await withTokenRefresh(todoistToken, (t) => createTask(content, t, { priority, project_id }));
       setText('');
       onCreated();
     } catch (e) {
       console.error('[AddTaskModal] createTask failed:', e);
+      setError("Couldn't add task to Todoist. Try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -55,6 +58,7 @@ export function AddTaskModal({ visible, onClose, onCreated, todoistToken }: Prop
 
   function handleClose() {
     setText('');
+    setError(null);
     onClose();
   }
 
@@ -67,11 +71,12 @@ export function AddTaskModal({ visible, onClose, onCreated, todoistToken }: Prop
             placeholder="Task title... #project p2"
             placeholderTextColor="#4A4A4A"
             value={text}
-            onChangeText={setText}
+            onChangeText={(v) => { setText(v); setError(null); }}
             autoFocus
             returnKeyType="done"
             onSubmitEditing={handleAdd}
           />
+          {error && <Text style={styles.errorText}>{error}</Text>}
           <View style={styles.row}>
             <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -117,6 +122,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#F0EFEB',
+    fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#E05C5C',
     fontFamily: Platform.select({ web: 'Poppins, sans-serif' }),
   },
   row: {

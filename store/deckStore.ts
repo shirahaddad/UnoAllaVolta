@@ -50,7 +50,7 @@ interface DeckState {
 // A 477 means the access token expired mid-session — refresh once and retry,
 // otherwise the mutation (e.g. closeTask) silently fails and Todoist never
 // sees it even though the app already updated its local state.
-async function withTokenRefresh<T>(token: string, fn: (token: string) => Promise<T>): Promise<T> {
+export async function withTokenRefresh<T>(token: string, fn: (token: string) => Promise<T>): Promise<T> {
   try {
     return await fn(token);
   } catch (e) {
